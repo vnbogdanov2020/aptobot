@@ -1,6 +1,8 @@
 
 from setting import bot_token
 from setting import cnx
+from setting import restlink
+from setting import chat_id_service
 import telebot
 from telebot import types
 import requests
@@ -59,7 +61,6 @@ def send_location(message):
                message.location.longitude,
                message.from_user.id
                )
-    print(newdata)
     cursor.executemany("UPDATE user SET latitude = %s, longitude = %s WHERE user_id = %s",
                        (newdata,))
     cnx.commit()
@@ -73,20 +74,24 @@ def sent_barcode(message):
     raw = message.photo[2].file_id
     file_info = bot.get_file(raw)
     downloaded_file = 'https://api.telegram.org/file/bot' + bot_token + '/' + file_info.file_path
-    bcode = barcode.read_barcode(downloaded_file)
+    bcode = barcode.read_barcode(downloaded_file,message.chat.id)
     print(str(bcode))
 
     if bcode == 'No':
         bot.send_message(message.chat.id, 'Не удалось распознать код. Попробуйте еще раз')
     else:
         # print('http://172.16.0.27/ords/apex_cvt/aptobot/rest/'+bcode.decode())
-
-        response = requests.get('http://172.16.0.27/ords/apex_cvt/aptobot/rest/' + bcode.decode(), verify=False)
-        if response.status_code == 404:
-            bot.send_message(message.chat.id, 'Не найдена цена на этот товар')
-            # todos = json.loads(response.text)
-        else:
-            todos = json.loads(response.text)
-            bot.send_message(message.chat.id, todos['name'] + chr(10) + chr(10) + 'Цена: ' + todos['price'] + ' тенге')
+        try:
+            response = requests.get(restlink + bcode.decode(), verify=False)
+            if response.status_code == 404:
+                bot.send_message(message.chat.id, 'Не найдена цена на этот товар')
+                # todos = json.loads(response.text)
+            else:
+                todos = json.loads(response.text)
+                bot.send_message(message.chat.id, todos['name'] + chr(10) + chr(10) + 'Цена: ' + todos['price'] + ' тенге')
+        except requests.exceptions.ConnectionError:
+            bot.send_message(message.chat.id, 'Отсутствует связь с сервисом цен')
+            #Оповестить сервис о проблемах
+            bot.send_message(chat_id_service, 'Внимание! Проблема с доступом к сервису цен')
 
 bot.polling()
