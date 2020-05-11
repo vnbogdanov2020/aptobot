@@ -40,6 +40,7 @@ def read_barcode(flink,chat_id):
             # Удалим файлы после использования
             for file in glob.glob(picpath + str(chat_id) + '.jpg'):
                 os.remove(file)
+
             return (barcode.data)
             # print(barcode.data)
             # print(barcode.type)
