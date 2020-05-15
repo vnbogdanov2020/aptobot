@@ -81,6 +81,7 @@ def sent_barcode(message):
         bot.send_message(message.chat.id, 'Не удалось распознать код. Попробуйте еще раз')
     else:
         # print('http://172.16.0.27/ords/apex_cvt/aptobot/rest/'+bcode.decode())
+        print(bcode.type)
         try:
             response = requests.get(restlink + bcode.decode(), verify=False)
             if response.status_code == 404:
