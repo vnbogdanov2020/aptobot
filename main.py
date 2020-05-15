@@ -82,7 +82,7 @@ def sent_barcode(message):
     else:
         # print('http://172.16.0.27/ords/apex_cvt/aptobot/rest/'+bcode.decode())
         print(type(bcode))
-        try:
+        try type(bcode) != 'NoneType':
             response = requests.get(restlink + bcode.decode(), verify=False)
             if response.status_code == 404:
                 bot.send_message(message.chat.id, 'Не найдена цена на этот товар')
