@@ -82,17 +82,20 @@ def sent_barcode(message):
     else:
         # print('http://172.16.0.27/ords/apex_cvt/aptobot/rest/'+bcode.decode())
         print(type(bcode))
-        try type(bcode) != 'NoneType':
-            response = requests.get(restlink + bcode.decode(), verify=False)
-            if response.status_code == 404:
-                bot.send_message(message.chat.id, 'Не найдена цена на этот товар')
-                # todos = json.loads(response.text)
-            else:
-                todos = json.loads(response.text)
-                bot.send_message(message.chat.id, todos['name'] + chr(10) + chr(10) + 'Цена: ' + todos['price'] + ' тенге')
-        except requests.exceptions.ConnectionError:
-            bot.send_message(message.chat.id, 'Отсутствует связь с сервисом цен')
-            #Оповестить сервис о проблемах
-            bot.send_message(chat_id_service, 'Внимание! Проблема с доступом к сервису цен')
+        if bcode is None:
+            bot.send_message(message.chat.id, 'Не удалось распознать код. Попробуйте еще раз')
+        else:
+            try:
+                response = requests.get(restlink + bcode.decode(), verify=False)
+                if response.status_code == 404:
+                    bot.send_message(message.chat.id, 'Не найдена цена на этот товар')
+                    # todos = json.loads(response.text)
+                else:
+                    todos = json.loads(response.text)
+                    bot.send_message(message.chat.id, todos['name'] + chr(10) + chr(10) + 'Цена: ' + todos['price'] + ' тенге')
+            except requests.exceptions.ConnectionError:
+                bot.send_message(message.chat.id, 'Отсутствует связь с сервисом цен')
+                #Оповестить сервис о проблемах
+                bot.send_message(chat_id_service, 'Внимание! Проблема с доступом к сервису цен')
 
 bot.polling()
