@@ -80,8 +80,6 @@ def sent_barcode(message):
     if bcode == 'No':
         bot.send_message(message.chat.id, 'Не удалось распознать код. Попробуйте еще раз')
     else:
-        # print('http://172.16.0.27/ords/apex_cvt/aptobot/rest/'+bcode.decode())
-        print(type(bcode))
         try:
             if bcode is None:
                 bot.send_message(message.chat.id, 'Не удалось распознать код. Попробуйте еще раз')
