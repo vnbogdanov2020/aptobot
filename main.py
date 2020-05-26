@@ -1,4 +1,4 @@
-
+import urllib3
 from setting import bot_token
 from setting import cnx
 from setting import restlink
@@ -10,10 +10,11 @@ import json
 import keyboards
 import barcode
 
-
+urllib3.disable_warnings()
 cursor = cnx.cursor()
 
 bot = telebot.TeleBot(bot_token)
+
 
 #Первый запуск
 @bot.message_handler(commands=['start'])
@@ -45,12 +46,39 @@ def add_user(message):
 #Обработка сообщений
 @bot.message_handler(content_types=['text'])
 def send_text(message):
-    if message.text.lower() == 'узнать цену':
-        bot.send_message(message.chat.id, "Напишите название или отправьте фото штрихкода товара и я скажу сколько он стоит")
-    elif message.text.lower() == 'место':
+    if message.text.lower() == 'поиск товара':
+        markup = types.InlineKeyboardMarkup()
+        switch_button = types.InlineKeyboardButton(text='Поиск по наименованию', switch_inline_query_current_chat="")
+        markup.add(switch_button)
+        bot.send_message(message.chat.id, "Отправьте фото штрихкода товара или выберите поиск по наименованию", reply_markup = markup)
+    elif message.text.lower() == 'локация':
         bot.send_message(message.chat.id, 'Чтобы увидеть товар в ближайших аптеках, выберите город и обновите координаты', reply_markup=keyboards.keyboard2)
     elif message.text.lower() == 'назад':
         bot.send_message(message.chat.id, 'Главное меню', reply_markup=keyboards.keyboard1)
+    elif message.text.lower() == 'город':
+        try:
+            response = requests.get(restlink+'/city/', verify=False)
+            if response.status_code == 404:
+                bot.send_message(message.chat.id, 'Не найден список городов')
+            else:
+                todos = json.loads(response.text)
+                print(todos)
+
+                markup = types.InlineKeyboardMarkup()
+                for city in todos:
+                    name = 'f'#city['city']
+                    switch_button = types.InlineKeyboardButton(text=name, callback_data=name)
+                    markup.add(switch_button)
+                bot.send_message(message.chat.id, "Выберите ваш город", reply_markup=markup)
+                #bot.send_message(message.chat.id, 'Главное меню', reply_markup=keyboards.keyboard1)
+
+                #bot.send_message(message.chat.id, todos['name'] + chr(10) + chr(10) + 'Цена: ' + todos['price'] + ' тенге')
+        except requests.exceptions.ConnectionError:
+            bot.send_message(message.chat.id, 'Отсутствует связь с сервисом цен')
+            #Оповестить сервис о проблемах
+            bot.send_message(chat_id_service, 'Внимание! Проблема с доступом к сервису цен')
+
+
 
 #Регистрация местоположения
 @bot.message_handler(content_types=['location'])
@@ -82,7 +110,7 @@ def sent_barcode(message):
     else:
         # print('http://172.16.0.27/ords/apex_cvt/aptobot/rest/'+bcode.decode())
         try:
-            response = requests.get(restlink + bcode.decode(), verify=False)
+            response = requests.get(restlink+'/restcode/' + bcode.decode(), verify=False)
             if response.status_code == 404:
                 bot.send_message(message.chat.id, 'Не найдена цена на этот товар')
                 # todos = json.loads(response.text)
@@ -93,5 +121,36 @@ def sent_barcode(message):
             bot.send_message(message.chat.id, 'Отсутствует связь с сервисом цен')
             #Оповестить сервис о проблемах
             bot.send_message(chat_id_service, 'Внимание! Проблема с доступом к сервису цен')
+
+
+
+#bot_search = telebot.TeleBot(bot_token_search)
+
+@bot.inline_handler(func=lambda query: len(query.query) > 0)
+def query_text(query):
+        #print(query)
+        response = requests.get(restlink +'/restname/' + query.query, verify=False)
+        #if response.status_code == 404:
+            # bot.send_message(message.chat.id, 'Ничего не найдено')
+            # todos = json.loads(response.text)
+        #else:
+        todos = json.loads(response.text)
+
+        results = []
+        n=0
+        for row in todos['items']:
+            n=n+1
+            items = types.InlineQueryResultArticle(
+                id=n, title=row['name'],
+                # Описание отображается в подсказке,
+                # message_text - то, что будет отправлено в виде сообщения
+                description="Производитель: "+row['producer'],
+                input_message_content=types.InputTextMessageContent(
+                    message_text=row['name']),
+                # Указываем ссылку на превью и его размеры
+                thumb_url=row['surl'], thumb_width=48, thumb_height=48
+            )
+            results.append(items)
+        bot.answer_inline_query(query.id, results)
 
 bot.polling()
