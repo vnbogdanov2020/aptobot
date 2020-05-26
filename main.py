@@ -148,7 +148,7 @@ def query_text(query):
                 input_message_content=types.InputTextMessageContent(
                     message_text=row['name']),
                 # Указываем ссылку на превью и его размеры
-                thumb_url=row['surl'], thumb_width=48, thumb_height=48
+                thumb_url=row['surl'], thumb_width=100, thumb_height=100
             )
             results.append(items)
         bot.answer_inline_query(query.id, results)
