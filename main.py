@@ -1,4 +1,5 @@
 import urllib3
+
 from setting import bot_token
 from setting import cnx
 from setting import restlink
@@ -136,9 +137,14 @@ def query_text(query):
         #else:
         todos = json.loads(response.text)
 
+        markup = types.InlineKeyboardMarkup()
+        switch_button = types.InlineKeyboardButton(text='Найти рядом', switch_inline_query_current_chat="")
+        markup.add(switch_button)
+
         results = []
         n=0
         for row in todos['items']:
+            print(row['name'] + "\n"+"!(" + row['surl'] + ")\n")
             n=n+1
             items = types.InlineQueryResultArticle(
                 id=n, title=row['name'],
@@ -146,7 +152,13 @@ def query_text(query):
                 # message_text - то, что будет отправлено в виде сообщения
                 description="Производитель: "+row['producer'],
                 input_message_content=types.InputTextMessageContent(
-                    message_text=row['name']),
+                    #message_text="<a href="+row['surl']+"></a>\n"+row['name'],
+                    message_text=row['name'] + "\n"+"!(" + row['surl'] + ")\n",
+                    #message_text='!(https://placebear.com/300/300)',
+                    parse_mode= "HTML",
+                    disable_web_page_preview=False,
+                     ),
+                reply_markup=markup,
                 # Указываем ссылку на превью и его размеры
                 thumb_url=row['surl'], thumb_width=100, thumb_height=100
             )
