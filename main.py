@@ -1,5 +1,5 @@
 import urllib3
-
+import emoji
 from setting import bot_token
 from setting import cnx
 from setting import restlink
@@ -111,13 +111,24 @@ def sent_barcode(message):
     else:
         # print('http://172.16.0.27/ords/apex_cvt/aptobot/rest/'+bcode.decode())
         try:
-            response = requests.get(restlink+'/restcode/' + bcode.decode(), verify=False)
+            response = requests.get(restlink+'/rest/' + bcode.decode(), verify=False)
             if response.status_code == 404:
                 bot.send_message(message.chat.id, 'Не найдена цена на этот товар')
                 # todos = json.loads(response.text)
             else:
+                markup = types.InlineKeyboardMarkup()
+                markup.add(
+                    types.InlineKeyboardButton(text=emoji.emojize(':mag_right: Найти рядом'), switch_inline_query_current_chat="")
+                )
                 todos = json.loads(response.text)
-                bot.send_message(message.chat.id, todos['name'] + chr(10) + chr(10) + 'Цена: ' + todos['price'] + ' тенге')
+                for row in todos['items']:
+                    bot.send_message(message.chat.id,
+                                     '*' + row['name'] + '* [.](' + row['burl'] + ') \n' + row['producer'],
+                                     parse_mode='markdown',
+                                     #todos['name'] + chr(10) + chr(10) + 'Цена: ' + todos['price'] + ' тенге'
+                                     disable_web_page_preview=False,
+                                     reply_markup=markup,
+                                     )
         except requests.exceptions.ConnectionError:
             bot.send_message(message.chat.id, 'Отсутствует связь с сервисом цен')
             #Оповестить сервис о проблемах
@@ -130,7 +141,7 @@ def sent_barcode(message):
 @bot.inline_handler(func=lambda query: len(query.query) > 0)
 def query_text(query):
         #print(query)
-        response = requests.get(restlink +'/restname/' + query.query, verify=False)
+        response = requests.get(restlink +'/rest/' + query.query, verify=False)
         #if response.status_code == 404:
             # bot.send_message(message.chat.id, 'Ничего не найдено')
             # todos = json.loads(response.text)
@@ -138,13 +149,13 @@ def query_text(query):
         todos = json.loads(response.text)
 
         markup = types.InlineKeyboardMarkup()
-        switch_button = types.InlineKeyboardButton(text='Найти рядом', switch_inline_query_current_chat="")
-        markup.add(switch_button)
+        markup.add(
+           types.InlineKeyboardButton(text=emoji.emojize(':mag_right: Найти рядом'), switch_inline_query_current_chat="")
+        )
 
         results = []
         n=0
         for row in todos['items']:
-            print(row['name'] + "\n"+"!(" + row['surl'] + ")\n")
             n=n+1
             items = types.InlineQueryResultArticle(
                 id=n, title=row['name'],
@@ -153,15 +164,17 @@ def query_text(query):
                 description="Производитель: "+row['producer'],
                 input_message_content=types.InputTextMessageContent(
                     #message_text="<a href="+row['surl']+"></a>\n"+row['name'],
-                    message_text=row['name'] + "\n"+"!(" + row['surl'] + ")\n",
-                    #message_text='!(https://placebear.com/300/300)',
-                    parse_mode= "HTML",
+                    message_text='*'+row['name']+'* [.](' + row['burl'] + ') \n'+row['producer'],
+                    #message_text='[.](https://placebear.com/300/300)',
+                    #message_text='<a href="https://placebear.com/300/300">&#160</a>',
+                    parse_mode='markdown',
                     disable_web_page_preview=False,
                      ),
                 reply_markup=markup,
                 # Указываем ссылку на превью и его размеры
-                thumb_url=row['surl'], thumb_width=100, thumb_height=100
+                thumb_url=row['murl'], thumb_width=100, thumb_height=100
             )
+
             results.append(items)
         bot.answer_inline_query(query.id, results)
 
