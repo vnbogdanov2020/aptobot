@@ -118,15 +118,13 @@ def sent_barcode(message):
             else:
                 markup = types.InlineKeyboardMarkup()
                 markup.add(
-                    types.InlineKeyboardButton(text=emoji.emojize(':mag_right: Найти рядом'), switch_inline_query_current_chat="")
+                    types.InlineKeyboardButton(text='Найти рядом', switch_inline_query_current_chat="")
                 )
                 todos = json.loads(response.text)
                 for row in todos['items']:
                     bot.send_message(message.chat.id,
                                      '*' + row['name'] + '* [.](' + row['burl'] + ') \n' + row['producer'],
                                      parse_mode='markdown',
-                                     #todos['name'] + chr(10) + chr(10) + 'Цена: ' + todos['price'] + ' тенге'
-                                     disable_web_page_preview=False,
                                      reply_markup=markup,
                                      )
         except requests.exceptions.ConnectionError:
@@ -150,13 +148,20 @@ def query_text(query):
 
         markup = types.InlineKeyboardMarkup()
         markup.add(
-           types.InlineKeyboardButton(text=emoji.emojize(':mag_right: Найти рядом'), switch_inline_query_current_chat="")
+            types.InlineKeyboardButton(text='Найти рядом', switch_inline_query_current_chat=""),
+            types.InlineKeyboardButton(text='Найти рядом', switch_inline_query_current_chat="")
         )
+
+        kb = types.InlineKeyboardMarkup()
+        # Добавляем колбэк-кнопку с содержимым "test"
+        kb.add(types.InlineKeyboardButton(text="Нажми меня", callback_data="test"))
 
         results = []
         n=0
         for row in todos['items']:
             n=n+1
+
+
             items = types.InlineQueryResultArticle(
                 id=n, title=row['name'],
                 # Описание отображается в подсказке,
@@ -170,12 +175,26 @@ def query_text(query):
                     parse_mode='markdown',
                     disable_web_page_preview=False,
                      ),
-                reply_markup=markup,
+                reply_markup=kb,
                 # Указываем ссылку на превью и его размеры
                 thumb_url=row['murl'], thumb_width=100, thumb_height=100
             )
 
             results.append(items)
+
         bot.answer_inline_query(query.id, results)
+
+@bot.callback_query_handler(func=lambda call: True)
+def callback_inline(call):
+    # Если сообщение из чата с ботом
+    if call.message:
+        if call.data == "test":
+            bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text="Пыщь")
+    # Если сообщение из инлайн-режима
+    elif call.inline_message_id:
+        if call.data == "test":
+            print(call)
+            bot.send_message(call.from_user.id, call.inline_message_id)
+            #bot.send_message(inline_message_id=call.inline_message_id, text="Бдыщь")
 
 bot.polling()
