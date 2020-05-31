@@ -2,14 +2,16 @@ import urllib3
 import emoji
 from setting import bot_token
 from setting import cnx
-from setting import restlink
-from setting import chat_id_service
+from setting import restlink, rest_all_link, chat_id_service
 import telebot
 from telebot import types
 import requests
 import json
 import keyboards
 import barcode
+
+
+
 
 urllib3.disable_warnings()
 cursor = cnx.cursor()
@@ -38,7 +40,8 @@ def add_user(message):
                message.contact.last_name,
                message.contact.phone_number
                )
-    cursor.executemany("INSERT INTO user (user_id, first_name, last_name, phone_number) VALUES (%s,%s,%s,%s)", (newdata,))
+    cursor.executemany("INSERT INTO user (user_id, first_name, last_name, phone_number) VALUES (%s,%s,%s,%s)",
+                       (newdata,))
     cnx.commit()
     cursor.close()
     cnx.close()
@@ -47,11 +50,13 @@ def add_user(message):
 #Обработка сообщений
 @bot.message_handler(content_types=['text'])
 def send_text(message):
-    if message.text.lower() == 'поиск товара':
+    if message.text.lower() == 'товары':
         markup = types.InlineKeyboardMarkup()
-        switch_button = types.InlineKeyboardButton(text='Поиск по наименованию', switch_inline_query_current_chat="")
-        markup.add(switch_button)
-        bot.send_message(message.chat.id, "Отправьте фото штрихкода товара или выберите поиск по наименованию", reply_markup = markup)
+        markup.add(
+            types.InlineKeyboardButton(text=u'\U0001F4CC'+' Мой список', callback_data='mylist:'),
+            types.InlineKeyboardButton(text=u'\U0001F50D'+' Поиск', switch_inline_query_current_chat="")
+                   )
+        bot.send_message(message.chat.id, "Вы можете найти несколько товаров, добавить их в список, а затем найти в какой ближайшей аптеке этот список есть в наличии", reply_markup = markup)
     elif message.text.lower() == 'локация':
         bot.send_message(message.chat.id, 'Чтобы увидеть товар в ближайших аптеках, выберите город и обновите координаты', reply_markup=keyboards.keyboard2)
     elif message.text.lower() == 'назад':
@@ -78,8 +83,6 @@ def send_text(message):
             bot.send_message(message.chat.id, 'Отсутствует связь с сервисом цен')
             #Оповестить сервис о проблемах
             bot.send_message(chat_id_service, 'Внимание! Проблема с доступом к сервису цен')
-
-
 
 #Регистрация местоположения
 @bot.message_handler(content_types=['location'])
@@ -117,11 +120,14 @@ def sent_barcode(message):
                 # todos = json.loads(response.text)
             else:
                 markup = types.InlineKeyboardMarkup()
-                markup.add(
-                    types.InlineKeyboardButton(text='Найти рядом', switch_inline_query_current_chat="")
-                )
+
                 todos = json.loads(response.text)
                 for row in todos['items']:
+                    markup.add(
+                        types.InlineKeyboardButton(text=u'\U0001F4CC', callback_data='prlist:' + str(row['nommodif'])),
+                        types.InlineKeyboardButton(text=u'\U0001F30D', callback_data='local:' + str(row['nommodif'])),
+                        types.InlineKeyboardButton(text=u'\U0001F50D', switch_inline_query_current_chat=""),
+                    )
                     bot.send_message(message.chat.id,
                                      '*' + row['name'] + '* [.](' + row['burl'] + ') \n' + row['producer'],
                                      parse_mode='markdown',
@@ -131,10 +137,6 @@ def sent_barcode(message):
             bot.send_message(message.chat.id, 'Отсутствует связь с сервисом цен')
             #Оповестить сервис о проблемах
             bot.send_message(chat_id_service, 'Внимание! Проблема с доступом к сервису цен')
-
-
-
-#bot_search = telebot.TeleBot(bot_token_search)
 
 @bot.inline_handler(func=lambda query: len(query.query) > 0)
 def query_text(query):
@@ -146,55 +148,68 @@ def query_text(query):
         #else:
         todos = json.loads(response.text)
 
-        markup = types.InlineKeyboardMarkup()
-        markup.add(
-            types.InlineKeyboardButton(text='Найти рядом', switch_inline_query_current_chat=""),
-            types.InlineKeyboardButton(text='Найти рядом', switch_inline_query_current_chat="")
-        )
-
-        kb = types.InlineKeyboardMarkup()
-        # Добавляем колбэк-кнопку с содержимым "test"
-        kb.add(types.InlineKeyboardButton(text="Нажми меня", callback_data="test"))
-
         results = []
-        n=0
+
         for row in todos['items']:
-            n=n+1
-
-
+            markup = types.InlineKeyboardMarkup()
+            markup.add(
+                types.InlineKeyboardButton(text=u'\U0001F4CC', callback_data='prlist:' + str(row['nommodif'])),
+                types.InlineKeyboardButton(text=u'\U0001F30D', callback_data='local:'+str(row['nommodif'])),
+                types.InlineKeyboardButton(text=u'\U0001F50D', switch_inline_query_current_chat=""),
+            )
             items = types.InlineQueryResultArticle(
-                id=n, title=row['name'],
-                # Описание отображается в подсказке,
-                # message_text - то, что будет отправлено в виде сообщения
+                id=row['nommodif'], title=row['name'],
                 description="Производитель: "+row['producer'],
                 input_message_content=types.InputTextMessageContent(
-                    #message_text="<a href="+row['surl']+"></a>\n"+row['name'],
                     message_text='*'+row['name']+'* [.](' + row['burl'] + ') \n'+row['producer'],
-                    #message_text='[.](https://placebear.com/300/300)',
-                    #message_text='<a href="https://placebear.com/300/300">&#160</a>',
                     parse_mode='markdown',
                     disable_web_page_preview=False,
                      ),
-                reply_markup=kb,
-                # Указываем ссылку на превью и его размеры
+                reply_markup=markup,
                 thumb_url=row['murl'], thumb_width=100, thumb_height=100
             )
-
             results.append(items)
-
         bot.answer_inline_query(query.id, results)
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_inline(call):
     # Если сообщение из чата с ботом
     if call.message:
-        if call.data == "test":
-            bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text="Пыщь")
+        print(call)
+        if call.data.find('mylist:') == 0:
+            print('product_list')
+            product_list = ''
+            sql = ("SELECT product_id FROM user_product_list WHERE chat_id = %s")
+            cursor.execute(sql, [(call.from_user.id)])
+            products = cursor.fetchall()
+            for product in products:
+                product_list = product_list + product[0]
+                print(product)
+            bot.send_message(call.from_user.id, product_list)
+            import_data('ЦВЕТНАЯ')
     # Если сообщение из инлайн-режима
     elif call.inline_message_id:
-        if call.data == "test":
-            print(call)
-            bot.send_message(call.from_user.id, call.inline_message_id)
-            #bot.send_message(inline_message_id=call.inline_message_id, text="Бдыщь")
+        if call.data.find('prlist:') == 0:
+            cursor.executemany("INSERT INTO user_product_list (chat_id, product_id) VALUES (%s,%s)",
+                               [(call.from_user.id,int(call.data.replace('prlist:',''))),])
+            cnx.commit()
+            cursor.close()
+            cnx.close()
+            bot.answer_callback_query(call.id, show_alert=True, text="Товар добавлен в список")
+
+
+def import_data(company):
+    if company=='ЦВЕТНАЯ':
+        try:
+            response = requests.get(rest_all_link, verify=False)
+            if response.status_code == 404:
+                bot.send_message(chat_id_service, 'Не оступен сервер ЦВЕТНАЯ')
+            else:
+                todos = json.loads(response.text)
+                for row in todos['items']:
+                    print(row['modif_name'])
+        except requests.exceptions.ConnectionError:
+            # Оповестить сервис о проблемах
+            bot.send_message(chat_id_service, 'Внимание! Проблема с доступом к сервису цен')
 
 bot.polling()
