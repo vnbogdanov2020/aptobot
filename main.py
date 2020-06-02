@@ -1,8 +1,7 @@
 import urllib3
-import emoji
 from setting import bot_token
 from setting import cnx
-from setting import restlink, rest_all_link, chat_id_service
+from setting import restlink, rest_all_link, chat_id_service, rest_link_product
 import telebot
 from telebot import types
 import requests
@@ -177,16 +176,14 @@ def callback_inline(call):
     if call.message:
         print(call)
         if call.data.find('mylist:') == 0:
-            print('product_list')
             product_list = ''
             sql = ("SELECT product_id FROM user_product_list WHERE chat_id = %s")
             cursor.execute(sql, [(call.from_user.id)])
             products = cursor.fetchall()
             for product in products:
                 product_list = product_list + product[0]
-                print(product)
             bot.send_message(call.from_user.id, product_list)
-            import_data('ЦВЕТНАЯ')
+            import_data()
     # Если сообщение из инлайн-режима
     elif call.inline_message_id:
         if call.data.find('prlist:') == 0:
@@ -198,18 +195,56 @@ def callback_inline(call):
             bot.answer_callback_query(call.id, show_alert=True, text="Товар добавлен в список")
 
 
-def import_data(company):
-    if company=='ЦВЕТНАЯ':
-        try:
-            response = requests.get(rest_all_link, verify=False)
-            if response.status_code == 404:
-                bot.send_message(chat_id_service, 'Не оступен сервер ЦВЕТНАЯ')
-            else:
+def import_data():
+
+    try:
+        response = requests.get(rest_link_product, verify=False)
+        if response.status_code == 404:
+            bot.send_message(chat_id_service, 'Не оступен сервер ЦВЕТНАЯ')
+        else:
+            todos = json.loads(response.text)
+            indata = []
+            for row in todos['items']:
+                indata.append((
+                        'ЦВЕТНАЯ',
+                        row['nommodif'],
+                        row['modif_name'],
+                        row['producer'],
+                        row['barcode']
+                ))
+
+            while todos['next']['$ref']:
+                newlink = todos['next']['$ref']
+                print(newlink)
+                response = requests.get(newlink, verify=False)
                 todos = json.loads(response.text)
                 for row in todos['items']:
-                    print(row['modif_name'])
-        except requests.exceptions.ConnectionError:
-            # Оповестить сервис о проблемах
-            bot.send_message(chat_id_service, 'Внимание! Проблема с доступом к сервису цен')
+                    indata.append((
+                        'ЦВЕТНАЯ',
+                        row['nommodif'],
+                        row['modif_name'],
+                        row['producer'],
+                        row['barcode']
+                    ))
+
+
+
+            cursor.executemany("INSERT INTO product (company,nommodif,name,producer,barcode) VALUES (%s,%s,%s,%s,%s)",
+                               indata)
+
+            cnx.commit()
+            cursor.close()
+            cnx.close()
+
+            #newlink = todos['next']['$ref']
+            #print(newlink)
+
+            #import_data('ЦВЕТНАЯ',newlink)
+    except requests.exceptions.ConnectionError:
+        # Оповестить сервис о проблемах
+        bot.send_message(chat_id_service, 'Внимание! Проблема с доступом к сервису цен')
+
+
+
 
 bot.polling()
