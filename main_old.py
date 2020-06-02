@@ -8,10 +8,6 @@ import requests
 import json
 import keyboards
 import barcode
-from service import transliterate
-
-
-
 
 urllib3.disable_warnings()
 cursor = cnx.cursor()
@@ -19,7 +15,7 @@ cursor = cnx.cursor()
 bot = telebot.TeleBot(bot_token)
 
 
-#Первый запуск
+# Первый запуск
 @bot.message_handler(commands=['start'])
 def start_message(message):
     sql = ("SELECT * FROM user WHERE user_id= %s")
@@ -30,11 +26,12 @@ def start_message(message):
     else:
         bot.send_message(message.chat.id, 'С возвращением!', reply_markup=keyboards.keyboard1)
 
-#Регистрация пользователя
+
+# Регистрация пользователя
 @bot.message_handler(content_types=['contact'])
 def add_user(message):
-    #conn = sqlite3.connect(bot_db)
-    #cursor = conn.cursor()
+    # conn = sqlite3.connect(bot_db)
+    # cursor = conn.cursor()
     newdata = (message.contact.user_id,
                message.contact.first_name,
                message.contact.last_name,
@@ -47,23 +44,28 @@ def add_user(message):
     cnx.close()
     bot.send_message(message.chat.id, 'Привет, приятно познакомиться', reply_markup=keyboards.keyboard1)
 
-#Обработка сообщений
+
+# Обработка сообщений
 @bot.message_handler(content_types=['text'])
 def send_text(message):
     if message.text.lower() == 'товары':
         markup = types.InlineKeyboardMarkup()
         markup.add(
-            types.InlineKeyboardButton(text=u'\U0001F4CC'+' Мой список', callback_data='mylist:'),
-            types.InlineKeyboardButton(text=u'\U0001F50D'+' Поиск', switch_inline_query_current_chat="")
-                   )
-        bot.send_message(message.chat.id, "Вы можете найти несколько товаров, добавить их в список, а затем найти в какой ближайшей аптеке этот список есть в наличии", reply_markup = markup)
+            types.InlineKeyboardButton(text=u'\U0001F4CC' + ' Мой список', callback_data='mylist:'),
+            types.InlineKeyboardButton(text=u'\U0001F50D' + ' Поиск', switch_inline_query_current_chat="")
+        )
+        bot.send_message(message.chat.id,
+                         "Вы можете найти несколько товаров, добавить их в список, а затем найти в какой ближайшей аптеке этот список есть в наличии",
+                         reply_markup=markup)
     elif message.text.lower() == 'локация':
-        bot.send_message(message.chat.id, 'Чтобы увидеть товар в ближайших аптеках, выберите город и обновите координаты', reply_markup=keyboards.keyboard2)
+        bot.send_message(message.chat.id,
+                         'Чтобы увидеть товар в ближайших аптеках, выберите город и обновите координаты',
+                         reply_markup=keyboards.keyboard2)
     elif message.text.lower() == 'назад':
         bot.send_message(message.chat.id, 'Главное меню', reply_markup=keyboards.keyboard1)
     elif message.text.lower() == 'город':
         try:
-            response = requests.get(restlink+'/city/', verify=False)
+            response = requests.get(restlink + '/city/', verify=False)
             if response.status_code == 404:
                 bot.send_message(message.chat.id, 'Не найден список городов')
             else:
@@ -72,27 +74,28 @@ def send_text(message):
 
                 markup = types.InlineKeyboardMarkup()
                 for city in todos:
-                    name = 'f'#city['city']
+                    name = 'f'  # city['city']
                     switch_button = types.InlineKeyboardButton(text=name, callback_data=name)
                     markup.add(switch_button)
                 bot.send_message(message.chat.id, "Выберите ваш город", reply_markup=markup)
-                #bot.send_message(message.chat.id, 'Главное меню', reply_markup=keyboards.keyboard1)
+                # bot.send_message(message.chat.id, 'Главное меню', reply_markup=keyboards.keyboard1)
 
-                #bot.send_message(message.chat.id, todos['name'] + chr(10) + chr(10) + 'Цена: ' + todos['price'] + ' тенге')
+                # bot.send_message(message.chat.id, todos['name'] + chr(10) + chr(10) + 'Цена: ' + todos['price'] + ' тенге')
         except requests.exceptions.ConnectionError:
             bot.send_message(message.chat.id, 'Отсутствует связь с сервисом цен')
-            #Оповестить сервис о проблемах
+            # Оповестить сервис о проблемах
             bot.send_message(chat_id_service, 'Внимание! Проблема с доступом к сервису цен')
 
-#Регистрация местоположения
+
+# Регистрация местоположения
 @bot.message_handler(content_types=['location'])
 def send_location(message):
     print(message)
     newdata = (
-               message.location.latitude,
-               message.location.longitude,
-               message.from_user.id
-               )
+        message.location.latitude,
+        message.location.longitude,
+        message.from_user.id
+    )
     cursor.executemany("UPDATE user SET latitude = %s, longitude = %s WHERE user_id = %s",
                        (newdata,))
     cnx.commit()
@@ -100,13 +103,14 @@ def send_location(message):
     cnx.close()
     bot.send_message(message.chat.id, 'Ваши координаты обновлены')
 
-#Получение фото товара
+
+# Получение фото товара
 @bot.message_handler(content_types=['photo'])
 def sent_barcode(message):
     raw = message.photo[2].file_id
     file_info = bot.get_file(raw)
     downloaded_file = 'https://api.telegram.org/file/bot' + bot_token + '/' + file_info.file_path
-    bcode = barcode.read_barcode(downloaded_file,message.chat.id)
+    bcode = barcode.read_barcode(downloaded_file, message.chat.id)
     print(str(bcode))
 
     if bcode == 'No':
@@ -114,7 +118,7 @@ def sent_barcode(message):
     else:
         # print('http://172.16.0.27/ords/apex_cvt/aptobot/rest/'+bcode.decode())
         try:
-            response = requests.get(restlink+'/rest/' + bcode.decode(), verify=False)
+            response = requests.get(restlink + '/rest/' + bcode.decode(), verify=False)
             if response.status_code == 404:
                 bot.send_message(message.chat.id, 'Не найдена цена на этот товар')
                 # todos = json.loads(response.text)
@@ -135,39 +139,43 @@ def sent_barcode(message):
                                      )
         except requests.exceptions.ConnectionError:
             bot.send_message(message.chat.id, 'Отсутствует связь с сервисом цен')
-            #Оповестить сервис о проблемах
+            # Оповестить сервис о проблемах
             bot.send_message(chat_id_service, 'Внимание! Проблема с доступом к сервису цен')
+
 
 @bot.inline_handler(func=lambda query: len(query.query) > 0)
 def query_text(query):
+    # print(query)
+    response = requests.get(restlink + '/rest/' + query.query, verify=False)
+    # if response.status_code == 404:
+    # bot.send_message(message.chat.id, 'Ничего не найдено')
+    # todos = json.loads(response.text)
+    # else:
+    todos = json.loads(response.text)
 
-        cursor.execute('SELECT * FROM product WHERE lower(concat(name,producer,barcode)) LIKE lower(%s) LIMIT 10', [('%'+query.query+'%')])
-        products = cursor.fetchall()
+    results = []
 
-        results = []
-        print(products)
-        for product in products:
+    for row in todos['items']:
+        markup = types.InlineKeyboardMarkup()
+        markup.add(
+            types.InlineKeyboardButton(text=u'\U0001F4CC', callback_data='prlist:' + str(row['nommodif'])),
+            types.InlineKeyboardButton(text=u'\U0001F30D', callback_data='local:' + str(row['nommodif'])),
+            types.InlineKeyboardButton(text=u'\U0001F50D', switch_inline_query_current_chat=""),
+        )
+        items = types.InlineQueryResultArticle(
+            id=row['nommodif'], title=row['name'],
+            description="Производитель: " + row['producer'],
+            input_message_content=types.InputTextMessageContent(
+                message_text='*' + row['name'] + '* [.](' + row['burl'] + ') \n' + row['producer'],
+                parse_mode='markdown',
+                disable_web_page_preview=False,
+            ),
+            reply_markup=markup,
+            thumb_url=row['murl'], thumb_width=100, thumb_height=100
+        )
+        results.append(items)
+    bot.answer_inline_query(query.id, results)
 
-            markup = types.InlineKeyboardMarkup()
-            markup.add(
-                types.InlineKeyboardButton(text=u'\U0001F4CC', callback_data='prlist:' + str(product[5])),
-                types.InlineKeyboardButton(text=u'\U0001F30D', callback_data='local:'+str(product[5])),
-                types.InlineKeyboardButton(text=u'\U0001F50D', switch_inline_query_current_chat=""),
-            )
-            items = types.InlineQueryResultArticle(
-                id=product[5], title=product[2],
-                description="Производитель: "+product[4],
-                input_message_content=types.InputTextMessageContent(
-                    message_text='*'+product[2]+'* [.](' + product[6] + ') \n'+product[4],
-                    parse_mode='markdown',
-                    disable_web_page_preview=False,
-                     ),
-                reply_markup=markup,
-                thumb_url=product[6], thumb_width=100, thumb_height=100
-            )
-            results.append(items)
-
-        bot.answer_inline_query(query.id, results)
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_inline(call):
@@ -187,7 +195,7 @@ def callback_inline(call):
     elif call.inline_message_id:
         if call.data.find('prlist:') == 0:
             cursor.executemany("INSERT INTO user_product_list (chat_id, product_id) VALUES (%s,%s)",
-                               [(call.from_user.id,int(call.data.replace('prlist:',''))),])
+                               [(call.from_user.id, int(call.data.replace('prlist:', ''))), ])
             cnx.commit()
             cursor.close()
             cnx.close()
@@ -195,7 +203,7 @@ def callback_inline(call):
 
 
 def import_data():
-    #Импорт справочника товаров
+    # Импорт справочника товаров
     try:
         response = requests.get(rest_link_product, verify=False)
         if response.status_code == 404:
@@ -208,12 +216,12 @@ def import_data():
 
             for row in todos['items']:
                 indata.append((
-                        'ЦВЕТНАЯ',
-                        row['nommodif'],
-                        row['modif_name'],
-                        row['producer'],
-                        row['barcode'],
-                        row['photo']
+                    'ЦВЕТНАЯ',
+                    row['nommodif'],
+                    row['modif_name'],
+                    row['producer'],
+                    row['barcode'],
+                    row['photo']
                 ))
 
             '''
@@ -232,14 +240,17 @@ def import_data():
                             row['barcode']
                         ))
             '''
-            cursor.executemany("INSERT INTO product (company,nommodif,name,producer,barcode,photo) VALUES (%s,%s,%s,%s,%s,%s)",
-                               indata)
+            cursor.executemany(
+                "INSERT INTO product (company,nommodif,name,producer,barcode,photo) VALUES (%s,%s,%s,%s,%s,%s)",
+                indata)
             cnx.commit()
             cursor.close()
             cnx.close()
     except requests.exceptions.ConnectionError:
         # Оповестить сервис о проблемах
         bot.send_message(chat_id_service, 'Внимание! Проблема с доступом к сервису цен')
+
+
 '''
     #Импорт справочника аптек
     try:
