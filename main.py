@@ -56,12 +56,16 @@ def send_text(message):
         if message.chat.id == chat_id_service:
             markup.add(
                 types.InlineKeyboardButton(text='Обновить данные', callback_data='refresh:'))
-        bot.send_message(message.chat.id, "Вы можете найти несколько товаров, добавить их в список, а затем найти в какой ближайшей аптеке этот список есть в наличии", reply_markup = markup)
+        bot.send_message(message.chat.id, "КАК ЭТО РАБОТАЕТ:\n"
+                                          "1. Выберите ваш город в пункте ЛОКАЦИЯ\n"
+                                          "2. Уточните ваши координаты в пункте ЛОКАЦИЯ\n"
+                                          "3. Найдите один или несколько товаров и добавьте их в список\n"
+                                          "4. Бот найдет ближайшие к вам аптеки в которых есть товар из списка", parse_mode='HTML', reply_markup = markup)
     elif message.text.lower() == 'локация':
         usercity = get_user_city(message.chat.id)
         citykeyboard = telebot.types.ReplyKeyboardMarkup(resize_keyboard=1)
         citykeyboard.add(types.KeyboardButton(text='Выбрать город ('+usercity+')'),
-                         types.KeyboardButton(text='Координаты', request_location=True))
+                         types.KeyboardButton(text='Обновить координаты', request_location=True))
         citykeyboard.add(types.KeyboardButton(text='Назад'))
         bot.send_message(message.chat.id, 'Чтобы увидеть товар в ближайших аптеках, выберите город и обновите координаты', reply_markup=citykeyboard)
     elif message.text.lower() == 'назад':
@@ -140,11 +144,25 @@ def sent_barcode(message):
 
 @bot.inline_handler(func=lambda query: len(query.query) > 0)
 def query_text(query):
+
         offset = int(query.offset) if query.offset else 0
         try:
-            cursor_search.execute('SELECT * FROM product WHERE lower(concat(name,producer,barcode,COALESCE(search_key,""))) LIKE lower(%s) LIMIT 5 OFFSET %s', ('%'+query.query+'%',offset,))
+            #cursor_search.execute('SELECT * FROM product WHERE lower(concat(name,producer,barcode,COALESCE(search_key,""))) LIKE lower(%s) LIMIT 5 OFFSET %s', ('%'+query.query+'%',offset,))
 
-            products = cursor_search.fetchall()
+            usercity = get_user_city(query.from_user.id)
+
+            SQL = """\
+                    select t.nommodif, t.name, t.producer, t.photo, t.city, case when %s='' then 0 ELSE t.price end price
+                    FROM (SELECT p1.nommodif, p1.name, p1.producer, p1.photo, p3.city, p2.price FROM product p1
+                    inner join stock p2 on p2.company = p1.company and p2.product_id = p1.nommodif
+                    inner join store p3 on p3.company = p2.company and p3.name = p2.store
+                    WHERE lower(concat(p1.name,p1.producer,p1.barcode,COALESCE(p1.search_key,''))) LIKE lower(%s)
+                    group by p1.nommodif, p1.name, p1.producer, p1.photo, p3.city, p2.price) t
+                    WHERE (t.city = %s or %s='') LIMIT 5 OFFSET %s
+                    """
+            cursor.execute(SQL, (usercity,'%'+query.query+'%',usercity,usercity,offset,))
+
+            products = cursor.fetchall()
 
             results = []
             try:
@@ -158,15 +176,15 @@ def query_text(query):
                             types.InlineKeyboardButton(text=u'\U0001F50D', switch_inline_query_current_chat=""),
                         )
                         items = types.InlineQueryResultArticle(
-                            id=product[5], title=product[2],
-                            description="Производитель: "+product[4]+"\nЦена: 1 000 тенге",
+                            id=product[0], title=product[1],
+                            description="Производитель: "+product[2]+"\nЦена: "+str(product[5])+" тенге",
                             input_message_content=types.InputTextMessageContent(
-                                message_text='*'+product[2]+'* [.](' + product[6] + ') \n'+product[4],
+                                message_text='*'+product[1]+'* [.](' + product[3] + ') \n'+product[2],
                                 parse_mode='markdown',
                                 disable_web_page_preview=False,
                                  ),
                             reply_markup=markup,
-                            thumb_url=product[6], thumb_width=100, thumb_height=100
+                            thumb_url=product[3], thumb_width=100, thumb_height=100
                         )
                         results.append(items)
                     except Exception as e:
@@ -176,6 +194,7 @@ def query_text(query):
                 print(e)
         except Exception as e:
             print(e)
+
 def get_user_city(in_user_id):
     # Ищем город пользователя
     try:
@@ -203,7 +222,7 @@ def callback_inline(call):
             usercity = call.data.replace('mycity:','')
             citykeyboard = telebot.types.ReplyKeyboardMarkup(resize_keyboard=1)
             citykeyboard.add(types.KeyboardButton(text='Выбрать город ('+usercity+')'),
-                             types.KeyboardButton(text='Координаты', request_location=True))
+                             types.KeyboardButton(text='Обновить координаты', request_location=True))
             citykeyboard.add(types.KeyboardButton(text='Назад'))
 
             bot.send_message(call.from_user.id,
@@ -372,7 +391,7 @@ def import_stock():
                         ))
             except Exception as e:
                 print(e)
-            cursor.executemany("INSERT INTO stock (company,store,product_id,price,qnt) VALUES (%s,%s,%s,%s,%s)",
+            cursor.executemany("INSERT INTO stock (company,store,product_id,qnt,price) VALUES (%s,%s,%s,%s,%s)",
                                indata)
             cnx.commit()
             bot.send_message(chat_id_service, 'Остатки обновлены')
