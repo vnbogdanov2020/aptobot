@@ -365,12 +365,13 @@ def import_stock():
                     for row in todos['items']:
                         indata.append((
                             'ЦВЕТНАЯ',
+                            row['store'],
                             row['nommodif'],
-                            row['modif_name'],
-                            row['producer'],
-                            row['barcode']
+                            row['restfact'],
+                            row['price']
                         ))
-
+            except Exception as e:
+                print(e)
             cursor.executemany("INSERT INTO stock (company,store,product_id,price,qnt) VALUES (%s,%s,%s,%s,%s)",
                                indata)
             cnx.commit()
