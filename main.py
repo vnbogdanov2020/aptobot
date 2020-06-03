@@ -12,9 +12,9 @@ import time
 from service import transliterate
 
 urllib3.disable_warnings()
-cursor = cnx.cursor(buffered=True)
-cursor_search = cnx.cursor(buffered=True)
-cursor_search.execute("SET SESSION MAX_EXECUTION_TIME=10000")
+cursor = cnx.cursor()
+#cursor_search = cnx.cursor()
+cursor.execute("SET SESSION MAX_EXECUTION_TIME=10000")
 
 bot = telebot.TeleBot(bot_token)
 
@@ -161,15 +161,15 @@ def query_text(query):
                     inner join store p3 on p3.company = p2.company and p3.name = p2.store
                     WHERE lower(concat(p1.name,COALESCE(p1.search_key,''))) LIKE lower(%s)
                     group by p1.nommodif, p1.name, p1.producer, p1.photo, p3.city, p2.price) t
-                    WHERE (t.city = %s or %s='') LIMIT 20 OFFSET %s
+                    WHERE (t.city = %s or %s='') LIMIT 5 OFFSET %s
                     """
-            cursor_search.execute(SQL, (usercity,'%'+query.query+'%',usercity,usercity,offset,))
+            cursor.execute(SQL, (usercity,'%'+query.query+'%',usercity,usercity,offset,))
 
-            products = cursor_search.fetchall()
+            products = cursor.fetchall()
 
             results = []
             try:
-                m_next_offset = str(offset + 20) if len(products) == 20 else None
+                m_next_offset = str(offset + 5) if len(products) == 5 else None
                 for product in products:
                     try:
                         markup = types.InlineKeyboardMarkup()
