@@ -8,11 +8,13 @@ import requests
 import json
 import keyboards
 import barcode
+import time
 from service import transliterate
 
 urllib3.disable_warnings()
 cursor = cnx.cursor(buffered=True)
 cursor_search = cnx.cursor(buffered=True)
+cursor_search.execute("SET SESSION MAX_EXECUTION_TIME=10000")
 
 bot = telebot.TeleBot(bot_token)
 
