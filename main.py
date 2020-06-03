@@ -1,7 +1,7 @@
 import urllib3
 from setting import bot_token
 from setting import cnx
-from setting import restlink, rest_all_link, chat_id_service, rest_link_product, rest_link_store
+from setting import restlink, rest_all_link, chat_id_service, rest_link_product, rest_link_store, rest_link_stock
 import telebot
 from telebot import types
 import requests
@@ -239,7 +239,9 @@ def callback_inline(call):
                              'Ваш список товаров удален.')
         if call.data.find('refresh:') == 0:
             #Импорт данных из аптек
-            import_data()
+            #import_product()
+            #import_store()
+            import_stock()
     # Если сообщение из инлайн-режима
     elif call.inline_message_id:
         if call.data.find('prlist:') == 0:
@@ -251,7 +253,7 @@ def callback_inline(call):
             bot.answer_callback_query(call.id, show_alert=True, text="Товар добавлен в список")
 
 
-def import_data():
+def import_product():
     #Импорт справочника товаров
     try:
         response = requests.get(rest_link_product, verify=False)
@@ -300,6 +302,7 @@ def import_data():
         # Оповестить сервис о проблемах
         bot.send_message(chat_id_service, 'Внимание! Проблема с доступом к сервису цен')
 
+def import_store():
     #Импорт справочника аптек
     try:
         response = requests.get(rest_link_store, verify=False)
@@ -327,6 +330,51 @@ def import_data():
                 indata)
             cnx.commit()
             bot.send_message(chat_id_service, 'Справочник аптек обновлен')
+            #cursor.close()
+            #cnx.close()
+    except requests.exceptions.ConnectionError:
+        # Оповестить сервис о проблемах
+        bot.send_message(chat_id_service, 'Внимание! Проблема с доступом к сервису цен')
+
+def import_stock():
+    #Импорт остатков
+    try:
+        response = requests.get(rest_link_stock, verify=False)
+        if response.status_code == 404:
+            bot.send_message(chat_id_service, 'Не оступен сервер ЦВЕТНАЯ')
+        else:
+            todos = json.loads(response.text)
+            indata = []
+
+            cursor.execute("DELETE FROM stock WHERE company='ЦВЕТНАЯ'")
+
+            for row in todos['items']:
+                indata.append((
+                        'ЦВЕТНАЯ',
+                        row['store'],
+                        row['nommodif'],
+                        row['restfact'],
+                        row['price']
+                ))
+            try:
+                while todos['next']['$ref']:
+                    newlink = todos['next']['$ref']
+                    print(newlink)
+                    response = requests.get(newlink, verify=False)
+                    todos = json.loads(response.text)
+                    for row in todos['items']:
+                        indata.append((
+                            'ЦВЕТНАЯ',
+                            row['nommodif'],
+                            row['modif_name'],
+                            row['producer'],
+                            row['barcode']
+                        ))
+
+            cursor.executemany("INSERT INTO stock (company,store,product_id,price,qnt) VALUES (%s,%s,%s,%s,%s)",
+                               indata)
+            cnx.commit()
+            bot.send_message(chat_id_service, 'Остатки обновлены')
             #cursor.close()
             #cnx.close()
     except requests.exceptions.ConnectionError:
