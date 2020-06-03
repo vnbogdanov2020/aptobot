@@ -12,7 +12,7 @@ from service import transliterate
 
 urllib3.disable_warnings()
 cursor = cnx.cursor(buffered=True)
-cursor_search = cnx.cursor()
+cursor_search = cnx.cursor(buffered=True)
 
 bot = telebot.TeleBot(bot_token)
 
@@ -142,37 +142,38 @@ def sent_barcode(message):
             #Оповестить сервис о проблемах
             bot.send_message(chat_id_service, 'Внимание! Проблема с доступом к сервису цен')
 
-@bot.inline_handler(func=lambda query: len(query.query) > 0)
+@bot.inline_handler(func=lambda query: len(query.query) >= 2)
 def query_text(query):
 
         offset = int(query.offset) if query.offset else 0
         try:
-            #cursor_search.execute('SELECT * FROM product WHERE lower(concat(name,producer,barcode,COALESCE(search_key,""))) LIKE lower(%s) LIMIT 5 OFFSET %s', ('%'+query.query+'%',offset,))
+            #cursor_search.execute('SELECT nommodif, name, producer, photo, "+" city, "-" price FROM product WHERE lower(concat(name,producer,barcode,COALESCE(search_key,""))) LIKE lower(%s) LIMIT 5 OFFSET %s', ('%'+query.query+'%',offset,))
 
             usercity = get_user_city(query.from_user.id)
+
 
             SQL = """\
                     select t.nommodif, t.name, t.producer, t.photo, t.city, case when %s='' then 0 ELSE t.price end price
                     FROM (SELECT p1.nommodif, p1.name, p1.producer, p1.photo, p3.city, p2.price FROM product p1
                     inner join stock p2 on p2.company = p1.company and p2.product_id = p1.nommodif
                     inner join store p3 on p3.company = p2.company and p3.name = p2.store
-                    WHERE lower(concat(p1.name,p1.producer,p1.barcode,COALESCE(p1.search_key,''))) LIKE lower(%s)
+                    WHERE lower(concat(p1.name,COALESCE(p1.search_key,''))) LIKE lower(%s)
                     group by p1.nommodif, p1.name, p1.producer, p1.photo, p3.city, p2.price) t
-                    WHERE (t.city = %s or %s='') LIMIT 5 OFFSET %s
+                    WHERE (t.city = %s or %s='') LIMIT 20 OFFSET %s
                     """
-            cursor.execute(SQL, (usercity,'%'+query.query+'%',usercity,usercity,offset,))
+            cursor_search.execute(SQL, (usercity,'%'+query.query+'%',usercity,usercity,offset,))
 
-            products = cursor.fetchall()
+            products = cursor_search.fetchall()
 
             results = []
             try:
-                m_next_offset = str(offset + 5) if len(products) == 5 else None
+                m_next_offset = str(offset + 20) if len(products) == 20 else None
                 for product in products:
                     try:
                         markup = types.InlineKeyboardMarkup()
                         markup.add(
-                            types.InlineKeyboardButton(text=u'\U0001F4CC', callback_data='prlist:' + str(product[5])),
-                            types.InlineKeyboardButton(text=u'\U0001F30D', callback_data='local:'+str(product[5])),
+                            types.InlineKeyboardButton(text=u'\U0001F4CC', callback_data='prlist:' + str(product[0])),
+                            types.InlineKeyboardButton(text=u'\U0001F30D', callback_data='local:'+str(product[0])),
                             types.InlineKeyboardButton(text=u'\U0001F50D', switch_inline_query_current_chat=""),
                         )
                         items = types.InlineQueryResultArticle(
@@ -189,7 +190,7 @@ def query_text(query):
                         results.append(items)
                     except Exception as e:
                         print(e)
-                bot.answer_inline_query(query.id, results, next_offset=m_next_offset if m_next_offset else "")
+                bot.answer_inline_query(query.id, results, next_offset=m_next_offset if m_next_offset else "", cache_time=86400)
             except Exception as e:
                 print(e)
         except Exception as e:
@@ -265,7 +266,7 @@ def callback_inline(call):
     elif call.inline_message_id:
         if call.data.find('prlist:') == 0:
             cursor.executemany("INSERT INTO user_product_list (chat_id, product_id) VALUES (%s,%s)",
-                               [(call.from_user.id,int(call.data.replace('prlist:',''))),])
+                               [(call.from_user.id,call.data.replace('prlist:','')),])
             cnx.commit()
             #cursor.close()
             #cnx.close()
@@ -401,4 +402,10 @@ def import_stock():
         # Оповестить сервис о проблемах
         bot.send_message(chat_id_service, 'Внимание! Проблема с доступом к сервису цен')
 
-bot.polling()
+while True:
+    try:
+        bot.polling(none_stop=True)
+    except Exception as e:
+        print(e)
+        # повторяем через 15 секунд в случае недоступности сервера Telegram
+        time.sleep(15)
