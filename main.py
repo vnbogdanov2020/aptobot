@@ -21,7 +21,7 @@ bot = telebot.TeleBot(bot_token)
 #Первый запуск
 @bot.message_handler(commands=['start'])
 def start_message(message):
-    sql = ("SELECT * FROM user WHERE user_id= %s")
+    sql = ("SELECT * FROM users WHERE chat_id= %s")
     cursor.execute(sql, [(message.from_user.id)])
     user = cursor.fetchone()
     if not user:
@@ -39,7 +39,7 @@ def add_user(message):
                message.contact.last_name,
                message.contact.phone_number
                )
-    cursor.executemany("INSERT INTO user (user_id, first_name, last_name, phone_number) VALUES (%s,%s,%s,%s)",
+    cursor.executemany("INSERT INTO users (chat_id, first_name, last_name, phone_number) VALUES (%s,%s,%s,%s)",
                        (newdata,))
     cnx.commit()
     #cursor.close()
@@ -99,7 +99,7 @@ def send_location(message):
                message.location.longitude,
                message.from_user.id
                )
-    cursor.executemany("UPDATE user SET latitude = %s, longitude = %s WHERE user_id = %s",
+    cursor.executemany("UPDATE users SET latitude = %s, longitude = %s WHERE chat_id = %s",
                        (newdata,))
     cnx.commit()
     #cursor.close()
@@ -211,7 +211,7 @@ def query_text(query):
 def get_user_city(in_user_id):
     # Ищем город пользователя
     try:
-        sql = ("SELECT city FROM user WHERE user_id = %s")
+        sql = ("SELECT city FROM users WHERE chat_id = %s")
         cursor.execute(sql, [(in_user_id)])
         city = cursor.fetchone()
         if city:
@@ -228,7 +228,7 @@ def callback_inline(call):
     if call.message:
         #print(call)
         if call.data.find('mycity:') == 0:
-            cursor.execute('UPDATE user SET city = %s WHERE user_id = %s', (call.data.replace('mycity:',''),call.from_user.id))
+            cursor.execute('UPDATE users SET city = %s WHERE chat_id = %s', (call.data.replace('mycity:',''),call.from_user.id))
             cnx.commit()
             #cursor.close()
             #cnx.close()
@@ -271,9 +271,41 @@ def callback_inline(call):
                              'Ваш список товаров удален.')
         if call.data.find('refresh:') == 0:
             #Импорт данных из аптек
-            #import_product()
-            #import_store()
+            import_product()
+            import_store()
             import_stock()
+        if call.data.find('locallist:') == 0:
+
+            markup = types.InlineKeyboardMarkup()
+            markup.add(
+                types.InlineKeyboardButton(text=u'\U0001F30D Искать по каждому товару', callback_data='locallist_one:'),
+            )
+
+            SQL = """\
+            SELECT s.name, s.address, s.mode, s.phone, s.latitude ,s.longitude FROM (
+            SELECT count(p2.product_id) kol, p1.name, get_way(p1.latitude ,p1.longitude,u.latitude,u.longitude) way FROM users u
+            inner join store p1 on p1.city = u.city 
+            inner join stock p2 on p2.company = p1.company and p1.name = p2.store 
+            WHERE u.chat_id = %s and p2.product_id in (select distinct(product_id) from user_product_list where chat_id = %s)
+            group by p1.name,  p1.latitude ,p1.longitude,u.latitude,u.longitude having count(p2.product_id)=(select count(distinct(product_id)) from user_product_list where chat_id = %s)
+            ) t 
+            inner join store s on s.name = t.name
+            order by t.way asc 
+            LIMIT 3
+            """
+            cursor.execute(SQL, (call.from_user.id,call.from_user.id,call.from_user.id,))
+            stores = cursor.fetchall()
+            for store in stores:
+                try:
+                    bot.send_location(call.from_user.id,
+                                     store[4],
+                                     store[5])
+                    bot.send_message(call.from_user.id,
+                                     'ВСЕ ПО СПИСКУ\n\n'+store[0]+'\n'+store[1]+'\n'+store[2]+'\n'+store[3],
+                                     parse_mode='markdown',
+                                     reply_markup=markup,)
+                except Exception as e:
+                    print(e)
     # Если сообщение из инлайн-режима
     elif call.inline_message_id:
         if call.data.find('prlist:') == 0:
