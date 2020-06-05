@@ -374,50 +374,8 @@ def callback_inline(call):
             import_store()
             import_stock()
         if call.data.find('locallist:') == 0:
+            search_list(call.from_user.id)
 
-            markup = types.InlineKeyboardMarkup()
-            markup.add(
-                types.InlineKeyboardButton(text=u'\U0001F30D Искать каждый товар отдельно', callback_data='locallist_one:'),
-            )
-
-            db_config = read_db_config()
-            conn = MySQLConnection(**db_config)
-            cursor = conn.cursor()
-
-            SQL = """\
-            SELECT s.name, s.address, s.mode, s.phone, s.latitude ,s.longitude, t.way FROM (
-            SELECT count(p2.product_id) kol, p1.name, get_way(p1.latitude ,p1.longitude,u.latitude,u.longitude) way FROM users u
-            inner join store p1 on p1.city = u.city 
-            inner join stock p2 on p2.company = p1.company and p1.name = p2.store 
-            WHERE u.chat_id = %s and p2.product_id in (select distinct(product_id) from user_product_list where chat_id = %s)
-            group by p1.name,  p1.latitude ,p1.longitude,u.latitude,u.longitude having count(p2.product_id)=(select count(distinct(product_id)) from user_product_list where chat_id = %s)
-            ) t 
-            inner join store s on s.name = t.name
-            order by t.way asc 
-            LIMIT 3
-            """
-            cursor.execute(SQL, (call.from_user.id,call.from_user.id,call.from_user.id,))
-            stores = cursor.fetchall()
-
-            for store in stores:
-                try:
-                    bot.send_venue(call.from_user.id,
-                                     store[4],
-                                     store[5],
-                                     store[0]+' ('+str(store[6])+' м.)',
-                                     store[1]
-                                   )
-                    bot.send_message(call.from_user.id,
-                                     store[2]+'\n'+'Тел: '+store[3]+'\nЕсть все по списку',
-                                     parse_mode='markdown',)
-                except Exception as e:
-                    print(e)
-            cursor.close()
-            conn.close()
-            bot.send_message(call.from_user.id,
-                             'Если вас не устроили эти аптеки вы можете поискать отдельно каждый товар из списка по ближайшим аптекам',
-                             parse_mode='markdown',
-                             reply_markup=markup, )
     # Если сообщение из инлайн-режима
     elif call.inline_message_id:
         if call.data.find('prlist:') == 0:
@@ -432,6 +390,54 @@ def callback_inline(call):
             conn.close()
 
             bot.answer_callback_query(call.id, show_alert=True, text="Товар добавлен в список")
+        elif call.data.find('locallist:') == 0:
+            search_list(call.from_user.id)
+
+
+def search_list(user_id):
+    markup = types.InlineKeyboardMarkup()
+    markup.add(
+        types.InlineKeyboardButton(text=u'\U0001F30D Искать каждый товар отдельно', callback_data='locallist_one:'),
+    )
+
+    db_config = read_db_config()
+    conn = MySQLConnection(**db_config)
+    cursor = conn.cursor()
+
+    SQL = """\
+                SELECT s.name, s.address, s.mode, s.phone, s.latitude ,s.longitude, t.way FROM (
+                SELECT count(p2.product_id) kol, p1.name, get_way(p1.latitude ,p1.longitude,u.latitude,u.longitude) way FROM users u
+                inner join store p1 on p1.city = u.city 
+                inner join stock p2 on p2.company = p1.company and p1.name = p2.store 
+                WHERE u.chat_id = %s and p2.product_id in (select distinct(product_id) from user_product_list where chat_id = %s)
+                group by p1.name,  p1.latitude ,p1.longitude,u.latitude,u.longitude having count(p2.product_id)=(select count(distinct(product_id)) from user_product_list where chat_id = %s)
+                ) t 
+                inner join store s on s.name = t.name
+                order by t.way asc 
+                LIMIT 3
+                """
+    cursor.execute(SQL, (user_id, user_id, user_id,))
+    stores = cursor.fetchall()
+
+    for store in stores:
+        try:
+            bot.send_venue(user_id,
+                           store[4],
+                           store[5],
+                           store[0] + ' (' + str(store[6]) + ' м.)',
+                           store[1]
+                           )
+            bot.send_message(user_id,
+                             store[2] + '\n' + 'Тел: ' + store[3] + '\nЕсть все по списку',
+                             parse_mode='markdown', )
+        except Exception as e:
+            print(e)
+    cursor.close()
+    conn.close()
+    bot.send_message(user_id,
+                     'Если вас не устроили эти аптеки вы можете поискать отдельно каждый товар из списка по ближайшим аптекам',
+                     parse_mode='markdown',
+                     reply_markup=markup, )
 
 
 def import_product():
