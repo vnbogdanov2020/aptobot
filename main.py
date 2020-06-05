@@ -225,36 +225,58 @@ def query_text(query):
             results = []
             try:
                 m_next_offset = str(offset + 5) if len(products) == 5 else None
-                for product in products:
-                    try:
-                        markup = types.InlineKeyboardMarkup()
-                        markup.add(
-                            types.InlineKeyboardButton(text=u'\U0001F4CC', callback_data='prlist:' + str(product[0])),
-                            types.InlineKeyboardButton(text=u'\U0001F30D', callback_data='local:'+str(product[0])),
-                            #types.InlineKeyboardButton(text=u'\U0001F30D', callback_data='locallist:'),
-                            types.InlineKeyboardButton(text=u'\U0001F50D', switch_inline_query_current_chat=""),
-                        )
-                        items = types.InlineQueryResultArticle(
-                            id=product[0], title=product[1],
-                            description="Производитель: "+product[2]+"\nЦена: "+str(product[5])+" тенге",
-                            input_message_content=types.InputTextMessageContent(
-                                message_text='*'+product[1]+'* [.](' + product[3] + ') \n'+product[2],
-                                parse_mode='markdown',
-                                disable_web_page_preview=False,
-                                 ),
-                            reply_markup=markup,
-                            thumb_url=product[3], thumb_width=100, thumb_height=100
-                        )
-                        results.append(items)
-                    except Exception as e:
-                        print(e)
-                cursor.close()
-                conn.close()
-                #bot.answer_inline_query(query.id, results, next_offset=m_next_offset if m_next_offset else "", cache_time=86400)
-                bot.answer_inline_query(query.id, results, next_offset=m_next_offset if m_next_offset else "")
+                if products:
+                    for product in products:
+                        try:
+                            markup = types.InlineKeyboardMarkup()
+                            markup.add(
+                                types.InlineKeyboardButton(text=u'\U0001F4CC', callback_data='prlist:' + str(product[0])),
+                                types.InlineKeyboardButton(text=u'\U0001F30D', callback_data='locallist:'),
+                                #types.InlineKeyboardButton(text=u'\U0001F30D', callback_data='local:'+str(product[0])),
+                                #types.InlineKeyboardButton(text=u'\U0001F30D', callback_data='locallist:'),
+                                types.InlineKeyboardButton(text=u'\U0001F50D', switch_inline_query_current_chat=""),
+                            )
+                            items = types.InlineQueryResultArticle(
+                                id=product[0], title=product[1],
+                                description="Производитель: "+product[2]+"\nЦена: "+str(product[5])+" тенге",
+                                input_message_content=types.InputTextMessageContent(
+                                    message_text='*'+product[1]+'* [.](' + product[3] + ') \n'+product[2]+'\nЦена: '+str(product[5])+' тенге',
+                                    parse_mode='markdown',
+                                    disable_web_page_preview=False,
+                                     ),
+                                reply_markup=markup,
+                                thumb_url=product[3], thumb_width=100, thumb_height=100
+                            )
+                            results.append(items)
+                        except Exception as e:
+                            print(e)
+                    cursor.close()
+                    conn.close()
+                    #bot.answer_inline_query(query.id, results, next_offset=m_next_offset if m_next_offset else "", cache_time=86400)
+                    bot.answer_inline_query(query.id, results, next_offset=m_next_offset if m_next_offset else "")
+                else:
+                    markup = types.InlineKeyboardMarkup()
+                    markup.add(
+                        types.InlineKeyboardButton(text=u'\U0001F50D Продолжить поиск', switch_inline_query_current_chat=""),
+                    )
+                    items = types.InlineQueryResultArticle(
+                        id='1000', title='Ничего не найдено',
+                        description="Попробуйте изменить запрос...",
+                        input_message_content=types.InputTextMessageContent(
+                            message_text="По вашему запросу ничего не найдено. Попробуйте изменить запрос...",
+                            parse_mode='markdown',
+                            disable_web_page_preview=True,
+                        ),
+                        reply_markup=markup,
+                        thumb_url='https://ru.seaicons.com/wp-content/uploads/2017/02/Cute-Ball-Stop-icon.png',
+                        thumb_width=100, thumb_height=100
+                    )
+                    results.append(items)
+                    bot.answer_inline_query(query.id, results)
 
             except Exception as e:
                 print(e)
+
         except Exception as e:
             print(e)
 
@@ -355,7 +377,7 @@ def callback_inline(call):
 
             markup = types.InlineKeyboardMarkup()
             markup.add(
-                types.InlineKeyboardButton(text=u'\U0001F30D Искать по каждому товару', callback_data='locallist_one:'),
+                types.InlineKeyboardButton(text=u'\U0001F30D Искать каждый товар отдельно', callback_data='locallist_one:'),
             )
 
             db_config = read_db_config()
@@ -363,7 +385,7 @@ def callback_inline(call):
             cursor = conn.cursor()
 
             SQL = """\
-            SELECT s.name, s.address, s.mode, s.phone, s.latitude ,s.longitude FROM (
+            SELECT s.name, s.address, s.mode, s.phone, s.latitude ,s.longitude, t.way FROM (
             SELECT count(p2.product_id) kol, p1.name, get_way(p1.latitude ,p1.longitude,u.latitude,u.longitude) way FROM users u
             inner join store p1 on p1.city = u.city 
             inner join stock p2 on p2.company = p1.company and p1.name = p2.store 
@@ -379,17 +401,23 @@ def callback_inline(call):
 
             for store in stores:
                 try:
-                    bot.send_location(call.from_user.id,
+                    bot.send_venue(call.from_user.id,
                                      store[4],
-                                     store[5])
+                                     store[5],
+                                     store[0]+' ('+str(store[6])+' м.)',
+                                     store[1]
+                                   )
                     bot.send_message(call.from_user.id,
-                                     'ВСЕ ПО СПИСКУ\n\n'+store[0]+'\n'+store[1]+'\n'+store[2]+'\n'+store[3],
-                                     parse_mode='markdown',
-                                     reply_markup=markup,)
+                                     store[2]+'\n'+'Тел: '+store[3]+'\nЕсть все по списку',
+                                     parse_mode='markdown',)
                 except Exception as e:
                     print(e)
             cursor.close()
             conn.close()
+            bot.send_message(call.from_user.id,
+                             'Если вас не устроили эти аптеки вы можете поискать отдельно каждый товар из списка по ближайшим аптекам',
+                             parse_mode='markdown',
+                             reply_markup=markup, )
     # Если сообщение из инлайн-режима
     elif call.inline_message_id:
         if call.data.find('prlist:') == 0:
