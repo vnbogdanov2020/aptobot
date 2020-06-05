@@ -9,14 +9,28 @@ import json
 import keyboards
 import barcode
 import time
+from configparser import ConfigParser
+from mysql.connector import MySQLConnection, Error
 from service import transliterate
 
 urllib3.disable_warnings()
 cursor = cnx.cursor()
 #cursor_search = cnx.cursor()
-cursor.execute("SET SESSION MAX_EXECUTION_TIME=10000")
+#cursor.execute("SET SESSION MAX_EXECUTION_TIME=10000")
 
 bot = telebot.TeleBot(bot_token)
+
+def read_db_config(filename='config.ini', section='mysql'):
+    parser = ConfigParser()
+    parser.read(filename)
+    db = {}
+    if parser.has_section(section):
+        items = parser.items(section)
+        for item in items:
+            db[item[0]] = item[1]
+    else:
+        raise Exception('{0} not found in the {1} file'.format(section, filename))
+    return db
 
 #Первый запуск
 @bot.message_handler(commands=['start'])
@@ -148,12 +162,15 @@ def sent_barcode(message):
 def query_text(query):
 
         offset = int(query.offset) if query.offset else 0
+        db_config = read_db_config()
+        conn = MySQLConnection(**db_config)
+
         try:
             #cursor_search.execute('SELECT nommodif, name, producer, photo, "+" city, "-" price FROM product WHERE lower(concat(name,producer,barcode,COALESCE(search_key,""))) LIKE lower(%s) LIMIT 5 OFFSET %s', ('%'+query.query+'%',offset,))
 
             usercity = get_user_city(query.from_user.id)
 
-
+            cursor = conn.cursor()
             SQL = """\
                     select t.nommodif, t.name, t.producer, t.photo, t.city, case when %s='' then 0 ELSE t.price end price
                     FROM (SELECT p1.nommodif, p1.name, p1.producer, p1.photo, p3.city, p2.price FROM product p1
@@ -203,10 +220,14 @@ def query_text(query):
                     except Exception as e:
                         print(e)
                 bot.answer_inline_query(query.id, results, next_offset=m_next_offset if m_next_offset else "", cache_time=86400)
+                cursor.close()
+                conn.close()
             except Exception as e:
                 print(e)
         except Exception as e:
             print(e)
+
+
 
 def get_user_city(in_user_id):
     # Ищем город пользователя
@@ -445,6 +466,7 @@ def import_stock():
     except requests.exceptions.ConnectionError:
         # Оповестить сервис о проблемах
         bot.send_message(chat_id_service, 'Внимание! Проблема с доступом к сервису цен')
+
 
 while True:
     try:
