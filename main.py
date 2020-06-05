@@ -84,8 +84,14 @@ def send_text(message):
                                           "3. Найдите один или несколько товаров и добавьте их в список\n"
                                           "4. Бот найдет ближайшие к вам аптеки в которых есть товар из списка", parse_mode='HTML', reply_markup = markup)
     elif message.text.lower() == 'локация':
-        usercity = get_user_city(message.chat.id)
+        city = get_user_city(message.chat.id)
+        if city:
+            usercity=city
+        else:
+            '???'
+
         citykeyboard = telebot.types.ReplyKeyboardMarkup(resize_keyboard=1)
+        #citykeyboard.add(types.KeyboardButton(text='Выбрать город ('+usercity+')'),
         citykeyboard.add(types.KeyboardButton(text='Выбрать город ('+usercity+')'),
                          types.KeyboardButton(text='Обновить координаты', request_location=True))
         citykeyboard.add(types.KeyboardButton(text='Назад'))
@@ -181,15 +187,14 @@ def sent_barcode(message):
 def query_text(query):
 
         offset = int(query.offset) if query.offset else 0
-        db_config = read_db_config()
-        conn = MySQLConnection(**db_config)
+
 
         try:
             #cursor_search.execute('SELECT nommodif, name, producer, photo, "+" city, "-" price FROM product WHERE lower(concat(name,producer,barcode,COALESCE(search_key,""))) LIKE lower(%s) LIMIT 5 OFFSET %s', ('%'+query.query+'%',offset,))
 
-            usercity = get_user_city(query.from_user.id)
+            #usercity = get_user_city(query.from_user.id)
 
-            cursor = conn.cursor()
+
             SQL = """\
                     select t.nommodif, t.name, t.producer, t.photo, t.city, case when %s='' then 0 ELSE t.price end price
                     FROM (SELECT p1.nommodif, p1.name, p1.producer, p1.photo, p3.city, p2.price FROM product p1
@@ -201,15 +206,19 @@ def query_text(query):
                     """
             SQL2 = """\
                                 SELECT p1.nommodif, p1.name, p1.producer, p1.photo, p3.city, p2.price FROM product p1
+                                inner join users u on u.chat_id = %s
                                 inner join stock p2 on p2.company = p1.company and p2.product_id = p1.nommodif
-                                inner join store p3 on p3.company = p2.company and p3.name = p2.store and p3.city = %s
+                                inner join store p3 on p3.company = p2.company and p3.name = p2.store and p3.city = u.city
                                 WHERE lower(concat(p1.name,COALESCE(p1.search_key,''))) LIKE lower(%s)
                                 group by p1.nommodif, p1.name, p1.producer, p1.photo, p3.city, p2.price
                                 LIMIT 5 OFFSET %s
                                 """
             #cursor.execute(SQL, (usercity,'%'+query.query+'%',usercity,usercity,offset,))
+            db_config = read_db_config()
+            conn = MySQLConnection(**db_config)
+            cursor = conn.cursor()
 
-            cursor.execute(SQL2, (usercity, '%' + query.query + '%', offset,))
+            cursor.execute(SQL2, (query.from_user.id, '%' + query.query + '%', offset,))
 
             products = cursor.fetchall()
 
@@ -222,6 +231,7 @@ def query_text(query):
                         markup.add(
                             types.InlineKeyboardButton(text=u'\U0001F4CC', callback_data='prlist:' + str(product[0])),
                             types.InlineKeyboardButton(text=u'\U0001F30D', callback_data='local:'+str(product[0])),
+                            #types.InlineKeyboardButton(text=u'\U0001F30D', callback_data='locallist:'),
                             types.InlineKeyboardButton(text=u'\U0001F50D', switch_inline_query_current_chat=""),
                         )
                         items = types.InlineQueryResultArticle(
@@ -238,9 +248,11 @@ def query_text(query):
                         results.append(items)
                     except Exception as e:
                         print(e)
-                bot.answer_inline_query(query.id, results, next_offset=m_next_offset if m_next_offset else "", cache_time=86400)
                 cursor.close()
                 conn.close()
+                #bot.answer_inline_query(query.id, results, next_offset=m_next_offset if m_next_offset else "", cache_time=86400)
+                bot.answer_inline_query(query.id, results, next_offset=m_next_offset if m_next_offset else "")
+
             except Exception as e:
                 print(e)
         except Exception as e:
@@ -265,6 +277,7 @@ def get_user_city(in_user_id):
             return ''
     except Exception as e:
         print(e)
+        return ''
 
 
 @bot.callback_query_handler(func=lambda call: True)
