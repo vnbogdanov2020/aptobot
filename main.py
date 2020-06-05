@@ -1,6 +1,5 @@
 import urllib3
 from setting import bot_token
-from setting import cnx
 from setting import restlink, rest_all_link, chat_id_service, rest_link_product, rest_link_store, rest_link_stock
 import telebot
 from telebot import types
@@ -14,9 +13,7 @@ from mysql.connector import MySQLConnection, Error
 from service import transliterate
 
 urllib3.disable_warnings()
-cursor = cnx.cursor()
-#cursor_search = cnx.cursor()
-#cursor.execute("SET SESSION MAX_EXECUTION_TIME=10000")
+
 
 bot = telebot.TeleBot(bot_token)
 
@@ -35,30 +32,39 @@ def read_db_config(filename='config.ini', section='mysql'):
 #Первый запуск
 @bot.message_handler(commands=['start'])
 def start_message(message):
+    db_config = read_db_config()
+    conn = MySQLConnection(**db_config)
+    cursor = conn.cursor()
+
     sql = ("SELECT * FROM users WHERE chat_id= %s")
     cursor.execute(sql, [(message.from_user.id)])
     user = cursor.fetchone()
     if not user:
-        bot.send_message(message.chat.id, 'Привет, я тебя не знаю ', reply_markup=keyboards.NewUser)
+        bot.send_message(message.chat.id, 'Привет, я тебя не знаю... ', reply_markup=keyboards.NewUser)
     else:
         bot.send_message(message.chat.id, 'С возвращением!', reply_markup=keyboards.keyboard1)
+    cursor.close()
+    conn.close()
 
 #Регистрация пользователя
 @bot.message_handler(content_types=['contact'])
 def add_user(message):
-    #conn = sqlite3.connect(bot_db)
-    #cursor = conn.cursor()
+
     newdata = (message.contact.user_id,
                message.contact.first_name,
                message.contact.last_name,
                message.contact.phone_number
                )
+    db_config = read_db_config()
+    conn = MySQLConnection(**db_config)
+    cursor = conn.cursor()
+
     cursor.executemany("INSERT INTO users (chat_id, first_name, last_name, phone_number) VALUES (%s,%s,%s,%s)",
                        (newdata,))
-    cnx.commit()
-    #cursor.close()
-    #cnx.close()
-    bot.send_message(message.chat.id, 'Привет, приятно познакомиться', reply_markup=keyboards.keyboard1)
+    conn.commit()
+    cursor.close()
+    conn.close()
+    bot.send_message(message.chat.id, 'Приятно познакомиться, можете пользоватьсе сервисом', reply_markup=keyboards.keyboard1)
 
 #Обработка сообщений
 @bot.message_handler(content_types=['text'])
@@ -88,6 +94,10 @@ def send_text(message):
         bot.send_message(message.chat.id, 'Главное меню', reply_markup=keyboards.keyboard1)
     elif message.text.lower().find('выбрать город') == 0:
         try:
+            db_config = read_db_config()
+            conn = MySQLConnection(**db_config)
+            cursor = conn.cursor()
+
             cursor.execute('select city from store s group by city order by city')
             citys = cursor.fetchall()
             markup = types.InlineKeyboardMarkup()
@@ -95,6 +105,10 @@ def send_text(message):
                 name = city[0]
                 switch_button = types.InlineKeyboardButton(text=name, callback_data='mycity:'+name)
                 markup.add(switch_button)
+
+            cursor.close()
+            conn.close()
+
             bot.send_message(message.chat.id, "Выберите ваш город", reply_markup=markup)
             #bot.send_message(message.chat.id, 'Главное меню', reply_markup=keyboards.keyboard1)
 
@@ -113,11 +127,16 @@ def send_location(message):
                message.location.longitude,
                message.from_user.id
                )
+    db_config = read_db_config()
+    conn = MySQLConnection(**db_config)
+    cursor = conn.cursor()
+
     cursor.executemany("UPDATE users SET latitude = %s, longitude = %s WHERE chat_id = %s",
                        (newdata,))
-    cnx.commit()
-    #cursor.close()
-    #cnx.close()
+    conn.commit()
+    cursor.close()
+    conn.close()
+
     bot.send_message(message.chat.id, 'Ваши координаты обновлены')
 
 #Получение фото товара
@@ -231,10 +250,15 @@ def query_text(query):
 
 def get_user_city(in_user_id):
     # Ищем город пользователя
+    db_config = read_db_config()
+    conn = MySQLConnection(**db_config)
     try:
+        cursor = conn.cursor()
         sql = ("SELECT city FROM users WHERE chat_id = %s")
         cursor.execute(sql, [(in_user_id)])
         city = cursor.fetchone()
+        cursor.close()
+        conn.close()
         if city:
             return city[0]
         else:
@@ -249,8 +273,14 @@ def callback_inline(call):
     if call.message:
         #print(call)
         if call.data.find('mycity:') == 0:
+            db_config = read_db_config()
+            conn = MySQLConnection(**db_config)
+            cursor = conn.cursor()
             cursor.execute('UPDATE users SET city = %s WHERE chat_id = %s', (call.data.replace('mycity:',''),call.from_user.id))
-            cnx.commit()
+            conn.commit()
+            cursor.close()
+            conn.close()
+
             #cursor.close()
             #cnx.close()
             usercity = call.data.replace('mycity:','')
@@ -265,9 +295,13 @@ def callback_inline(call):
         if call.data.find('mylist:') == 0:
             try:
                 product_list = 'СПИСОК ДЛЯ ПОИСКА:\n\n'
+                db_config = read_db_config()
+                conn = MySQLConnection(**db_config)
+                cursor = conn.cursor()
                 sql = ("SELECT p2.name, p2.producer FROM user_product_list p1, product p2 WHERE p2.nommodif = p1.product_id AND p1.chat_id = %s group by p2.name, p2.producer order by p2.name")
                 cursor.execute(sql, [(call.from_user.id)])
                 products = cursor.fetchall()
+
                 for product in products:
                     product_list = product_list + '*'+product[0]+'*'+'\n'+product[1]+'\n'+'\n'
 
@@ -280,14 +314,23 @@ def callback_inline(call):
                                  product_list,
                                  parse_mode='markdown',
                                  reply_markup=markup,)
+
+                cursor.close()
+                conn.close()
             except Exception as e:
                 print(e)
                 bot.send_message(call.from_user.id,
                                  'Список пустой...')
         if call.data.find('clearlist:') == 0:
             #Очистка списка пользоателя
+            db_config = read_db_config()
+            conn = MySQLConnection(**db_config)
+            cursor = conn.cursor()
+
             cursor.execute('DELETE FROM user_product_list WHERE chat_id = %s', [(call.from_user.id)])
-            cnx.commit()
+            conn.commit()
+            cursor.close()
+            conn.close()
             bot.send_message(call.from_user.id,
                              'Ваш список товаров удален.')
         if call.data.find('refresh:') == 0:
@@ -301,6 +344,10 @@ def callback_inline(call):
             markup.add(
                 types.InlineKeyboardButton(text=u'\U0001F30D Искать по каждому товару', callback_data='locallist_one:'),
             )
+
+            db_config = read_db_config()
+            conn = MySQLConnection(**db_config)
+            cursor = conn.cursor()
 
             SQL = """\
             SELECT s.name, s.address, s.mode, s.phone, s.latitude ,s.longitude FROM (
@@ -316,6 +363,7 @@ def callback_inline(call):
             """
             cursor.execute(SQL, (call.from_user.id,call.from_user.id,call.from_user.id,))
             stores = cursor.fetchall()
+
             for store in stores:
                 try:
                     bot.send_location(call.from_user.id,
@@ -327,14 +375,21 @@ def callback_inline(call):
                                      reply_markup=markup,)
                 except Exception as e:
                     print(e)
+            cursor.close()
+            conn.close()
     # Если сообщение из инлайн-режима
     elif call.inline_message_id:
         if call.data.find('prlist:') == 0:
+            db_config = read_db_config()
+            conn = MySQLConnection(**db_config)
+            cursor = conn.cursor()
+
             cursor.executemany("INSERT INTO user_product_list (chat_id, product_id) VALUES (%s,%s)",
                                [(call.from_user.id,call.data.replace('prlist:','')),])
-            cnx.commit()
-            #cursor.close()
-            #cnx.close()
+            conn.commit()
+            cursor.close()
+            conn.close()
+
             bot.answer_callback_query(call.id, show_alert=True, text="Товар добавлен в список")
 
 
@@ -348,6 +403,10 @@ def import_product():
             todos = json.loads(response.text)
             indata = []
 
+            db_config = read_db_config()
+            conn = MySQLConnection(**db_config)
+            cursor = conn.cursor()
+
             cursor.execute("DELETE FROM product WHERE company='ЦВЕТНАЯ'")
 
             for row in todos['items']:
@@ -360,6 +419,7 @@ def import_product():
                         row['photo'],
                         row['skey'],
                 ))
+
 
             '''
             try:
@@ -379,7 +439,11 @@ def import_product():
             '''
             cursor.executemany("INSERT INTO product (company,nommodif,name,producer,barcode,photo,search_key) VALUES (%s,%s,%s,%s,%s,%s,%s)",
                                indata)
-            cnx.commit()
+
+            conn.commit()
+            cursor.close()
+            conn.close()
+
             bot.send_message(chat_id_service, 'Справочник товаров обновлен')
             #cursor.close()
             #cnx.close()
@@ -397,6 +461,10 @@ def import_store():
             todos = json.loads(response.text)
             indata = []
 
+            db_config = read_db_config()
+            conn = MySQLConnection(**db_config)
+            cursor = conn.cursor()
+
             cursor.execute("DELETE FROM store WHERE company='ЦВЕТНАЯ'")
 
             for row in todos['items']:
@@ -413,7 +481,11 @@ def import_store():
             cursor.executemany(
                 "INSERT INTO store (company,name,city,address,longitude,latitude,phone,mode) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
                 indata)
-            cnx.commit()
+
+            conn.commit()
+            cursor.close()
+            conn.close()
+
             bot.send_message(chat_id_service, 'Справочник аптек обновлен')
             #cursor.close()
             #cnx.close()
@@ -430,6 +502,10 @@ def import_stock():
         else:
             todos = json.loads(response.text)
             indata = []
+
+            db_config = read_db_config()
+            conn = MySQLConnection(**db_config)
+            cursor = conn.cursor()
 
             cursor.execute("DELETE FROM stock WHERE company='ЦВЕТНАЯ'")
 
@@ -459,7 +535,11 @@ def import_stock():
                 print(e)
             cursor.executemany("INSERT INTO stock (company,store,product_id,qnt,price) VALUES (%s,%s,%s,%s,%s)",
                                indata)
-            cnx.commit()
+
+            conn.commit()
+            cursor.close()
+            conn.close()
+
             bot.send_message(chat_id_service, 'Остатки обновлены')
             #cursor.close()
             #cnx.close()
