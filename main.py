@@ -159,29 +159,43 @@ def sent_barcode(message):
     else:
         # print('http://172.16.0.27/ords/apex_cvt/aptobot/rest/'+bcode.decode())
         try:
-            response = requests.get(restlink+'/rest/' + bcode.decode(), verify=False)
-            if response.status_code == 404:
-                bot.send_message(message.chat.id, 'Не найдена цена на этот товар')
-                # todos = json.loads(response.text)
-            else:
-                markup = types.InlineKeyboardMarkup()
+            SQL = """\
+            select p1.nommodif, p1.name , p1.producer , p1.photo , s.price from product p1  
+            inner join users u on u.chat_id = %s
+            inner join store t on t.city  = u.city  
+            inner join stock s on p1.company = s.company and p1.nommodif  = s.product_id and t.name  = s.store 
+            where p1.barcode = %s 
+            group by p1.nommodif, p1.name , p1.producer , p1.photo , s.price
+            """
+            db_config = read_db_config()
+            conn = MySQLConnection(**db_config)
+            cursor = conn.cursor()
 
-                todos = json.loads(response.text)
-                for row in todos['items']:
-                    markup.add(
-                        types.InlineKeyboardButton(text=u'\U0001F4CC В список', callback_data='prlist:' + str(row['nommodif'])),
-                        types.InlineKeyboardButton(text=u'\U0001F30D Аптеки', callback_data='local:' + str(row['nommodif'])),
-                        types.InlineKeyboardButton(text=u'\U0001F50D Поиск', switch_inline_query_current_chat=""),
-                    )
-                    bot.send_message(message.chat.id,
-                                     '*' + row['name'] + '* [.](' + row['burl'] + ') \n' + row['producer'],
-                                     parse_mode='markdown',
-                                     reply_markup=markup,
-                                     )
-        except requests.exceptions.ConnectionError:
-            bot.send_message(message.chat.id, 'Отсутствует связь с сервисом цен')
-            #Оповестить сервис о проблемах
-            bot.send_message(chat_id_service, 'Внимание! Проблема с доступом к сервису цен')
+            cursor.execute(SQL, (message.chat.id, str(bcode.decode()),))
+            products = cursor.fetchall()
+            if products:
+                for product in products:
+                    try:
+                        markup = types.InlineKeyboardMarkup()
+                        markup.add(
+                            types.InlineKeyboardButton(text=u'\U0001F4CC В список',
+                                                       callback_data='prlist:' + str(product[0])),
+                            types.InlineKeyboardButton(text=u'\U0001F30D Аптеки', callback_data='locallist:'),
+                            types.InlineKeyboardButton(text=u'\U0001F50D Поиск', switch_inline_query_current_chat=""),
+                        )
+                        bot.send_message(message.chat.id,
+                                         '*' + product[1] + '* [.](' + product[3] + ') \n' + product[2]+'\nЦена: '+str(product[4])+' тенге',
+                                         parse_mode='markdown',
+                                         reply_markup=markup,
+                                         )
+                    except Exception as e:
+                        print(e)
+                        bot.send_message(message.chat.id, 'Не найдена цена на этот товар')
+            cursor.close()
+            conn.close()
+
+        except Exception as e:
+                    print(e)
 
 @bot.inline_handler(func=lambda query: len(query.query) >= 2)
 def query_text(query):
@@ -378,23 +392,28 @@ def callback_inline(call):
             search_list(call.from_user.id)
         if call.data.find('locallist_one:') == 0:
             search_list_one(call.from_user.id)
+        if call.data.find('prlist:') == 0:
+            add_list(call.from_user.id, call.data.replace('prlist:',''), call.id)
 
     # Если сообщение из инлайн-режима
     elif call.inline_message_id:
         if call.data.find('prlist:') == 0:
-            db_config = read_db_config()
-            conn = MySQLConnection(**db_config)
-            cursor = conn.cursor()
-
-            cursor.executemany("INSERT INTO user_product_list (chat_id, product_id) VALUES (%s,%s)",
-                               [(call.from_user.id,call.data.replace('prlist:','')),])
-            conn.commit()
-            cursor.close()
-            conn.close()
-
-            bot.answer_callback_query(call.id, show_alert=True, text="Товар добавлен в список")
+            add_list(call.from_user.id, call.data.replace('prlist:',''), call.id)
         elif call.data.find('locallist:') == 0:
             search_list(call.from_user.id)
+
+def add_list(user_id, in_data, call_id):
+    db_config = read_db_config()
+    conn = MySQLConnection(**db_config)
+    cursor = conn.cursor()
+
+    cursor.executemany("INSERT INTO user_product_list (chat_id, product_id) VALUES (%s,%s)",
+                       [(int(user_id), str(in_data)),])
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    bot.answer_callback_query(call_id, show_alert=True, text="Товар добавлен в список")
 
 
 def search_list(user_id):
