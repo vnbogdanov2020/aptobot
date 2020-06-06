@@ -176,22 +176,21 @@ def sent_barcode(message):
             products = cursor.fetchall()
             if products:
                 for product in products:
-                    try:
-                        markup = types.InlineKeyboardMarkup()
-                        markup.add(
-                            types.InlineKeyboardButton(text=u'\U0001F4CC В список',
-                                                       callback_data='prlist:' + str(product[0])),
-                            types.InlineKeyboardButton(text=u'\U0001F30D Аптеки', callback_data='locallist:'),
-                            types.InlineKeyboardButton(text=u'\U0001F50D Поиск', switch_inline_query_current_chat=""),
-                        )
-                        bot.send_message(message.chat.id,
-                                         '*' + product[1] + '* [.](' + product[3] + ') \n' + product[2]+'\nЦена: '+str(product[4])+' тенге',
-                                         parse_mode='markdown',
-                                         reply_markup=markup,
-                                         )
-                    except Exception as e:
-                        print(e)
-                        bot.send_message(message.chat.id, 'Не найдена цена на этот товар')
+
+                    markup = types.InlineKeyboardMarkup()
+                    markup.add(
+                        types.InlineKeyboardButton(text=u'\U0001F4CC В список',
+                                                   callback_data='prlist:' + str(product[0])),
+                        types.InlineKeyboardButton(text=u'\U0001F30D Аптеки', callback_data='locallist:'),
+                        types.InlineKeyboardButton(text=u'\U0001F50D Поиск', switch_inline_query_current_chat=""),
+                    )
+                    bot.send_message(message.chat.id,
+                                     '*' + product[1] + '* [.](' + product[3] + ') \n' + product[2]+'\nЦена: '+str(product[4])+' тенге',
+                                     parse_mode='markdown',
+                                     reply_markup=markup,
+                                     )
+            else:
+                bot.send_message(message.chat.id, 'Не найдена цена на этот товар')
             cursor.close()
             conn.close()
 
