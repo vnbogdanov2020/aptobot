@@ -8,7 +8,7 @@ import telebot
 from telebot import types
 
 keyboard1 = telebot.types.ReplyKeyboardMarkup(resize_keyboard=1)
-keyboard1.row('Товары','Локация')
+keyboard1.row('Поиск товара','Локация')
 
 
 keyboard2 = telebot.types.ReplyKeyboardMarkup(resize_keyboard=1)
