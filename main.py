@@ -1,16 +1,12 @@
-import urllib3
-from setting import bot_token
-from setting import chat_id_service, rest_link_product, rest_link_store, rest_link_stock
+import urllib3, json, requests
+from setting import bot_token, chat_id_service, rest_link_product, rest_link_store, rest_link_stock
 import telebot
 from telebot import types
-import requests
-import json
-import keyboards
-import barcode
-import time
-import datetime
+import barcode, keyboards
+import time, datetime, schedule
 from configparser import ConfigParser
 from mysql.connector import MySQLConnection, Error
+from multiprocessing import Process
 from service import transliterate
 
 urllib3.disable_warnings()
@@ -566,6 +562,11 @@ def search_list_one(user_id):
         cursor.close()
         conn.close()
 
+def import_data():
+    import_product()
+    import_store()
+    import_stock()
+
 
 def import_product():
     #Импорт справочника товаров
@@ -720,8 +721,23 @@ def import_stock():
     except requests.exceptions.ConnectionError:
         # Оповестить сервис о проблемах
         bot.send_message(chat_id_service, 'Внимание! Проблема с доступом к сервису цен')
+"""
+# Подключаем планировщик повторений
+#schedule.every().day.at("05:00").do(job)
+#schedule.every().hour.do(import_data)
+schedule.every(10).minutes.do(import_data)
 
+# это функция проверки на запуск импорта
+def check_import_data():
+    while True:
+        schedule.run_pending()
+        time.sleep(60)
 
+# а теперь запускаем проверку в отдельном потоке
+#if __name__ == '__main__':
+p1 = Process(target=check_import_data, args=())
+p1.start()
+"""
 while True:
     try:
         bot.polling(none_stop=True)
@@ -729,3 +745,4 @@ while True:
         print(e)
         # повторяем через 15 секунд в случае недоступности сервера Telegram
         time.sleep(15)
+
