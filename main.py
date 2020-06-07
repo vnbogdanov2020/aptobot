@@ -1,6 +1,6 @@
 import urllib3
 from setting import bot_token
-from setting import restlink, rest_all_link, chat_id_service, rest_link_product, rest_link_store, rest_link_stock
+from setting import chat_id_service, rest_link_product, rest_link_store, rest_link_stock
 import telebot
 from telebot import types
 import requests
@@ -14,7 +14,6 @@ from mysql.connector import MySQLConnection, Error
 from service import transliterate
 
 urllib3.disable_warnings()
-
 
 bot = telebot.TeleBot(bot_token)
 
@@ -51,23 +50,32 @@ def start_message(message):
 #Регистрация пользователя
 @bot.message_handler(content_types=['contact'])
 def add_user(message):
+    db_config = read_db_config()
+    conn = MySQLConnection(**db_config)
+    cursor = conn.cursor()
 
-    newdata = (message.contact.user_id,
+    sql = ("SELECT * FROM users WHERE chat_id= %s")
+    cursor.execute(sql, [(message.contact.user_id)])
+    user = cursor.fetchone()
+    cursor.close()
+    conn.close()
+
+    if not user:
+        newdata = (message.contact.user_id,
                message.contact.first_name,
                message.contact.last_name,
                message.contact.phone_number,
                datetime.datetime.now()
                )
-    db_config = read_db_config()
-    conn = MySQLConnection(**db_config)
-    cursor = conn.cursor()
-
-    cursor.executemany("INSERT INTO users (chat_id, first_name, last_name, phone_number,datetime) VALUES (%s,%s,%s,%s,%s)",
-                       (newdata,))
-    conn.commit()
-    cursor.close()
-    conn.close()
-    bot.send_message(message.chat.id, 'Приятно познакомиться, можете пользоватьсе сервисом', reply_markup=keyboards.keyboard1)
+        db_config = read_db_config()
+        conn = MySQLConnection(**db_config)
+        cursor = conn.cursor()
+        cursor.executemany("INSERT INTO users (chat_id, first_name, last_name, phone_number,datetime) VALUES (%s,%s,%s,%s,%s)",
+                           (newdata,))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        bot.send_message(message.chat.id, 'Приятно познакомиться, можете пользоватьсе сервисом', reply_markup=keyboards.keyboard1)
 
 #Обработка сообщений
 @bot.message_handler(content_types=['text'])
