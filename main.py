@@ -8,6 +8,7 @@ import json
 import keyboards
 import barcode
 import time
+import datetime
 from configparser import ConfigParser
 from mysql.connector import MySQLConnection, Error
 from service import transliterate
@@ -17,6 +18,7 @@ urllib3.disable_warnings()
 
 bot = telebot.TeleBot(bot_token)
 
+#Чтение файла конфигурации
 def read_db_config(filename='config.ini', section='mysql'):
     parser = ConfigParser()
     parser.read(filename)
@@ -40,7 +42,7 @@ def start_message(message):
     cursor.execute(sql, [(message.from_user.id)])
     user = cursor.fetchone()
     if not user:
-        bot.send_message(message.chat.id, 'Привет, я тебя не знаю... ', reply_markup=keyboards.NewUser)
+        bot.send_message(message.chat.id, 'Вы впервые здесь. Для продолжения нажмите кнопку "Зарегистрироваться"', reply_markup=keyboards.NewUser)
     else:
         bot.send_message(message.chat.id, 'С возвращением!', reply_markup=keyboards.keyboard1)
     cursor.close()
@@ -53,13 +55,14 @@ def add_user(message):
     newdata = (message.contact.user_id,
                message.contact.first_name,
                message.contact.last_name,
-               message.contact.phone_number
+               message.contact.phone_number,
+               datetime.datetime.now()
                )
     db_config = read_db_config()
     conn = MySQLConnection(**db_config)
     cursor = conn.cursor()
 
-    cursor.executemany("INSERT INTO users (chat_id, first_name, last_name, phone_number) VALUES (%s,%s,%s,%s)",
+    cursor.executemany("INSERT INTO users (chat_id, first_name, last_name, phone_number,datetime) VALUES (%s,%s,%s,%s,%s)",
                        (newdata,))
     conn.commit()
     cursor.close()
@@ -281,7 +284,7 @@ def query_text(query):
                     )
                     results.append(items)
                     bot.answer_inline_query(query.id, results)
-
+                add_logs(query.from_user.id, 'search', query.query)
             except Exception as e:
                 print(e)
 
@@ -289,25 +292,6 @@ def query_text(query):
             print(e)
 
 
-#Получение города пользователяя
-def get_user_city(in_user_id):
-    # Ищем город пользователя
-    db_config = read_db_config()
-    conn = MySQLConnection(**db_config)
-    try:
-        cursor = conn.cursor()
-        sql = ("SELECT city FROM users WHERE chat_id = %s")
-        cursor.execute(sql, [(in_user_id)])
-        city = cursor.fetchone()
-        cursor.close()
-        conn.close()
-        if city:
-            return city[0]
-        else:
-            return ''
-    except Exception as e:
-        print(e)
-        return ''
 
 #Обработка входящих сообщений
 @bot.callback_query_handler(func=lambda call: True)
@@ -369,6 +353,17 @@ def callback_inline(call):
             get_search_list(call.from_user.id)
             search_list(call.from_user.id)
 
+def add_logs(user_id, metod, value):
+    db_config = read_db_config()
+    conn = MySQLConnection(**db_config)
+    cursor = conn.cursor()
+    now = datetime.datetime.now()
+    cursor.executemany("INSERT INTO logs (datetime,chat_id,metod,value) VALUES (%s,%s,%s,%s)",
+                       [(now,int(user_id), metod,value),])
+    conn.commit()
+    cursor.close()
+    conn.close()
+
 def add_list(user_id, in_data, call_id):
     db_config = read_db_config()
     conn = MySQLConnection(**db_config)
@@ -380,7 +375,29 @@ def add_list(user_id, in_data, call_id):
     cursor.close()
     conn.close()
 
+    add_logs(int(user_id), 'product', str(in_data))
+
     bot.answer_callback_query(call_id, show_alert=True, text="Товар добавлен в список")
+
+#Получение города пользователяя
+def get_user_city(in_user_id):
+    # Ищем город пользователя
+    db_config = read_db_config()
+    conn = MySQLConnection(**db_config)
+    try:
+        cursor = conn.cursor()
+        sql = ("SELECT city FROM users WHERE chat_id = %s")
+        cursor.execute(sql, [(in_user_id)])
+        city = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        if city:
+            return city[0]
+        else:
+            return ''
+    except Exception as e:
+        print(e)
+        return ''
 
 #Вывод списка товаров
 def get_search_list(user_id):
