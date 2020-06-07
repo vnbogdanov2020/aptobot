@@ -197,17 +197,11 @@ def sent_barcode(message):
         except Exception as e:
                     print(e)
 
+#Формирование результатов поиска
 @bot.inline_handler(func=lambda query: len(query.query) >= 2)
 def query_text(query):
-
         offset = int(query.offset) if query.offset else 0
-
-
         try:
-            #cursor_search.execute('SELECT nommodif, name, producer, photo, "+" city, "-" price FROM product WHERE lower(concat(name,producer,barcode,COALESCE(search_key,""))) LIKE lower(%s) LIMIT 5 OFFSET %s', ('%'+query.query+'%',offset,))
-
-            #usercity = get_user_city(query.from_user.id)
-
 
             SQL = """\
                     select t.nommodif, t.name, t.producer, t.photo, t.city, case when %s='' then 0 ELSE t.price end price
@@ -295,7 +289,7 @@ def query_text(query):
             print(e)
 
 
-
+#Получение города пользователяя
 def get_user_city(in_user_id):
     # Ищем город пользователя
     db_config = read_db_config()
@@ -315,7 +309,7 @@ def get_user_city(in_user_id):
         print(e)
         return ''
 
-
+#Обработка входящих сообщений
 @bot.callback_query_handler(func=lambda call: True)
 def callback_inline(call):
     # Если сообщение из чата с ботом
@@ -342,35 +336,7 @@ def callback_inline(call):
                              'Ваш город: '+usercity,
                              reply_markup=citykeyboard)
         if call.data.find('mylist:') == 0:
-            try:
-                product_list = 'СПИСОК ДЛЯ ПОИСКА:\n\n'
-                db_config = read_db_config()
-                conn = MySQLConnection(**db_config)
-                cursor = conn.cursor()
-                sql = ("SELECT p2.name, p2.producer FROM user_product_list p1, product p2 WHERE p2.nommodif = p1.product_id AND p1.chat_id = %s group by p2.name, p2.producer order by p2.name")
-                cursor.execute(sql, [(call.from_user.id)])
-                products = cursor.fetchall()
-
-                for product in products:
-                    product_list = product_list + '*'+product[0]+'*'+'\n'+product[1]+'\n'+'\n'
-
-                markup = types.InlineKeyboardMarkup()
-                markup.add(
-                    types.InlineKeyboardButton(text=u'\U0001F5D1 Очистить', callback_data='clearlist:'),
-                    types.InlineKeyboardButton(text=u'\U0001F30D Аптеки', callback_data='locallist:'),
-                    types.InlineKeyboardButton(text=u'\U0001F50D Поиск', switch_inline_query_current_chat=""),
-                )
-                bot.send_message(call.from_user.id,
-                                 product_list,
-                                 parse_mode='markdown',
-                                 reply_markup=markup,)
-
-                cursor.close()
-                conn.close()
-            except Exception as e:
-                print(e)
-                bot.send_message(call.from_user.id,
-                                 'Список пустой...')
+            get_search_list(call.from_user.id)
         if call.data.find('clearlist:') == 0:
             #Очистка списка пользоателя
             db_config = read_db_config()
@@ -400,6 +366,7 @@ def callback_inline(call):
         if call.data.find('prlist:') == 0:
             add_list(call.from_user.id, call.data.replace('prlist:',''), call.id)
         elif call.data.find('locallist:') == 0:
+            get_search_list(call.from_user.id)
             search_list(call.from_user.id)
 
 def add_list(user_id, in_data, call_id):
@@ -415,7 +382,40 @@ def add_list(user_id, in_data, call_id):
 
     bot.answer_callback_query(call_id, show_alert=True, text="Товар добавлен в список")
 
+#Вывод списка товаров
+def get_search_list(user_id):
+    try:
+        product_list = 'СПИСОК ДЛЯ ПОИСКА:\n\n'
+        db_config = read_db_config()
+        conn = MySQLConnection(**db_config)
+        cursor = conn.cursor()
+        sql = (
+            "SELECT p2.name, p2.producer FROM user_product_list p1, product p2 WHERE p2.nommodif = p1.product_id AND p1.chat_id = %s group by p2.name, p2.producer order by p2.name")
+        cursor.execute(sql, [(user_id)])
+        products = cursor.fetchall()
 
+        for product in products:
+            product_list = product_list + '*' + product[0] + '*' + '\n' + product[1] + '\n' + '\n'
+
+        markup = types.InlineKeyboardMarkup()
+        markup.add(
+            types.InlineKeyboardButton(text=u'\U0001F5D1 Очистить', callback_data='clearlist:'),
+            types.InlineKeyboardButton(text=u'\U0001F30D Аптеки', callback_data='locallist:'),
+            types.InlineKeyboardButton(text=u'\U0001F50D Поиск', switch_inline_query_current_chat=""),
+        )
+        bot.send_message(user_id,
+                         product_list,
+                         parse_mode='markdown',
+                         reply_markup=markup, )
+
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        print(e)
+        bot.send_message(user_id,
+                         'Список пустой...')
+
+#Поиск товаров по списку
 def search_list(user_id):
     #Назначим кнопки
     markup = types.InlineKeyboardMarkup()
