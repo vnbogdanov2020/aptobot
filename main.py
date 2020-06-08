@@ -96,7 +96,7 @@ def send_text(message):
         if city:
             usercity=city
         else:
-            '???'
+            usercity='???'
 
         citykeyboard = telebot.types.ReplyKeyboardMarkup(resize_keyboard=1)
         #citykeyboard.add(types.KeyboardButton(text='Выбрать город ('+usercity+')'),
@@ -388,19 +388,15 @@ def get_user_city(in_user_id):
     # Ищем город пользователя
     db_config = read_db_config()
     conn = MySQLConnection(**db_config)
-    try:
-        cursor = conn.cursor()
-        sql = ("SELECT city FROM users WHERE chat_id = %s")
-        cursor.execute(sql, [(in_user_id)])
-        city = cursor.fetchone()
-        cursor.close()
-        conn.close()
-        if city:
-            return city[0]
-        else:
-            return ''
-    except Exception as e:
-        print(e)
+    cursor = conn.cursor()
+    sql = ("SELECT city FROM users WHERE chat_id = %s")
+    cursor.execute(sql, [(in_user_id)])
+    city = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    if city:
+        return city[0]
+    else:
         return ''
 
 #Вывод списка товаров
