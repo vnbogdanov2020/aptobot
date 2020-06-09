@@ -6,7 +6,7 @@ import barcode, keyboards
 import time, datetime, schedule
 from configparser import ConfigParser
 from mysql.connector import MySQLConnection, Error
-from multiprocessing import Process
+from multiprocessing import Process, freeze_support
 from service import transliterate
 
 urllib3.disable_warnings()
@@ -220,12 +220,12 @@ def query_text(query):
                     WHERE (t.city = %s or %s='') LIMIT 5 OFFSET %s
                     """
             SQL2 = """\
-                                SELECT p1.nommodif, p1.name, p1.producer, p1.photo, p3.city, p2.price FROM product p1
+                                SELECT p1.nommodif, p1.name, p1.producer, p1.photo, p3.city, max(p2.price) price FROM product p1
                                 inner join users u on u.chat_id = %s
                                 inner join stock p2 on p2.company = p1.company and p2.product_id = p1.nommodif
                                 inner join store p3 on p3.company = p2.company and p3.name = p2.store and p3.city = u.city
                                 WHERE lower(concat(p1.name,COALESCE(p1.search_key,''))) LIKE lower(%s)
-                                group by p1.nommodif, p1.name, p1.producer, p1.photo, p3.city, p2.price
+                                group by p1.nommodif, p1.name, p1.producer, p1.photo, p3.city
                                 LIMIT 5 OFFSET %s
                                 """
             #cursor.execute(SQL, (usercity,'%'+query.query+'%',usercity,usercity,offset,))
@@ -721,11 +721,13 @@ def import_stock():
     except requests.exceptions.ConnectionError:
         # Оповестить сервис о проблемах
         bot.send_message(chat_id_service, 'Внимание! Проблема с доступом к сервису цен')
-"""
+
 # Подключаем планировщик повторений
 #schedule.every().day.at("05:00").do(job)
 #schedule.every().hour.do(import_data)
+"""
 schedule.every(10).minutes.do(import_data)
+
 
 # это функция проверки на запуск импорта
 def check_import_data():
@@ -734,9 +736,11 @@ def check_import_data():
         time.sleep(60)
 
 # а теперь запускаем проверку в отдельном потоке
-#if __name__ == '__main__':
-p1 = Process(target=check_import_data, args=())
-p1.start()
+if __name__ == '__main__':
+    freeze_support()
+    p1 = Process(target=check_import_data, args=())
+    p1.start()
+
 """
 while True:
     try:
@@ -745,4 +749,5 @@ while True:
         print(e)
         # повторяем через 15 секунд в случае недоступности сервера Telegram
         time.sleep(15)
+
 
