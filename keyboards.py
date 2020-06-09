@@ -21,6 +21,6 @@ keyboard2.add(key3)
 #keyboard1.row('Запрос')
 
 NewUser = telebot.types.ReplyKeyboardMarkup(resize_keyboard=1)
-key_b = types.KeyboardButton(text='Отправить контакт',request_contact=True)
+key_b = types.KeyboardButton(text='Зарегистрироваться',request_contact=True)
 NewUser.add(key_b)
 
