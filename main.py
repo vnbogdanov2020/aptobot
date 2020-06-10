@@ -118,8 +118,7 @@ def send_text(message):
             bot.send_message(message.chat.id, 'Отсутствует связь с сервисом цен')
             #Оповестить сервис о проблемах
             bot.send_message(chat_id_service, 'Внимание! Проблема с доступом к сервису цен')
-    else:
-        products(message.chat.id)
+
 
     #Регистрация местоположения
 @bot.message_handler(content_types=['location'])
@@ -213,7 +212,7 @@ def query_text(query):
                                 inner join users u on u.chat_id = %s
                                 inner join stock p2 on p2.company = p1.company and p2.product_id = p1.nommodif
                                 inner join store p3 on p3.company = p2.company and p3.name = p2.store and p3.city = u.city
-                                WHERE lower(concat(p1.name,COALESCE(p1.search_key,''))) LIKE lower(%s)
+                                WHERE lower(concat(p1.name,p1.producer,COALESCE(p1.search_key,''))) LIKE lower(%s)
                                 group by p1.nommodif, p1.name, p1.producer, p1.photo, p3.city
                                 LIMIT 5 OFFSET %s
                                 """
