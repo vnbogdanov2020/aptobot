@@ -71,26 +71,13 @@ def add_user(message):
         conn.commit()
         cursor.close()
         conn.close()
-        bot.send_message(message.chat.id, 'Приятно познакомиться, можете пользоватьсе сервисом', reply_markup=keyboards.keyboard1)
+        bot.send_message(message.chat.id, 'Приятно познакомиться, можете пользоваться сервисом', reply_markup=keyboards.keyboard1)
 
 #Обработка сообщений
 @bot.message_handler(content_types=['text'])
 def send_text(message):
-    if message.text.lower() == 'поиск товара':
-        markup = types.InlineKeyboardMarkup()
-        markup.add(
-            types.InlineKeyboardButton(text=u'\U0001F4CC'+' Мой список', callback_data='mylist:'),
-            types.InlineKeyboardButton(text=u'\U0001F50D'+' Поиск', switch_inline_query_current_chat="")
-                   )
-        if message.chat.id == chat_id_service:
-            markup.add(
-                types.InlineKeyboardButton(text='Обновить данные', callback_data='refresh:'))
-        bot.send_message(message.chat.id, "КАК ЭТО РАБОТАЕТ:\n"
-                                          "1. Выберите ваш город в пункте ЛОКАЦИЯ\n"
-                                          "2. Уточните ваши координаты в пункте ЛОКАЦИЯ\n"
-                                          "3. Найдите один или несколько товаров и добавьте их в список\n"
-                                          "4. Для поиска наберите часть наименования или отправьте фото штрих-кода с упаковки товара\n"
-                                          "5. Бот найдет ближайшие к вам аптеки в которых есть товар из списка", parse_mode='HTML', reply_markup = markup)
+    if message.text.lower() == 'товары':
+        products(message.chat.id)
     elif message.text.lower() == 'локация':
         city = get_user_city(message.chat.id)
         if city:
@@ -131,8 +118,10 @@ def send_text(message):
             bot.send_message(message.chat.id, 'Отсутствует связь с сервисом цен')
             #Оповестить сервис о проблемах
             bot.send_message(chat_id_service, 'Внимание! Проблема с доступом к сервису цен')
+    else:
+        products(message.chat.id)
 
-#Регистрация местоположения
+    #Регистрация местоположения
 @bot.message_handler(content_types=['location'])
 def send_location(message):
     print(message)
@@ -356,6 +345,23 @@ def callback_inline(call):
         elif call.data.find('locallist:') == 0:
             get_search_list(call.from_user.id)
             search_list(call.from_user.id)
+
+def products(user_id):
+    markup = types.InlineKeyboardMarkup()
+    markup.add(
+        types.InlineKeyboardButton(text=u'\U0001F4CC' + ' Мой список', callback_data='mylist:'),
+        types.InlineKeyboardButton(text=u'\U0001F50D' + ' Поиск', switch_inline_query_current_chat="")
+    )
+    # Сервисная комманда
+    if user_id == chat_id_service:
+        markup.add(
+            types.InlineKeyboardButton(text='Обновить данные', callback_data='refresh:'))
+    bot.send_message(user_id, "КАК ЭТО РАБОТАЕТ:\n\n"
+                                      "1. В пункте [Локация] выберите город и обновите координаты (если Вы еще этого не сделали)\n\n"
+                                      "2. Нажмите [\U0001F50DПоиск], наберите боту часть наименования, например '@goAptoBot анальгин' или просто отправьте боту \U0001F4CE ФОТО ШТРИХ-КОДА с упаковки товара\n\n"
+                                      "3. Найдите один или несколько товаров и добавьте их в список\n\n"
+                                      "4. Бот сообщит о цене и найдет ближайшие к вам аптеки, в которых есть товар из списка",
+                     parse_mode='HTML', reply_markup=markup)
 
 def add_logs(user_id, metod, value):
     db_config = read_db_config()
