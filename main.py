@@ -5,6 +5,8 @@ from telebot import types
 import barcode, keyboards
 import time, datetime, schedule
 from configparser import ConfigParser
+import os
+from os import path
 from mysql.connector import MySQLConnection, Error
 from multiprocessing import Process, freeze_support
 from service import transliterate
@@ -13,8 +15,11 @@ urllib3.disable_warnings()
 
 bot = telebot.TeleBot(bot_token)
 
+dirpath = os.path.dirname(__file__)
+conffile = os.path.join(dirpath, 'config.ini')
+
 #Чтение файла конфигурации
-def read_db_config(filename='config.ini', section='mysql'):
+def read_db_config(filename=conffile, section='mysql'):
     parser = ConfigParser()
     parser.read(filename)
     db = {}
