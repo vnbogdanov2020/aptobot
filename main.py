@@ -213,7 +213,7 @@ def query_text(query):
                     WHERE (t.city = %s or %s='') LIMIT 5 OFFSET %s
                     """
             SQL2 = """\
-                                SELECT p1.nommodif, p1.name, p1.producer, p1.photo, p3.city, ,
+                                SELECT p1.nommodif, p1.name, p1.producer, p1.photo, p3.city,
                                 case when min(p2.price) <> max(p2.price) then
                                 CONCAT(min(p2.price),' - ',max(p2.price))
                                 else
