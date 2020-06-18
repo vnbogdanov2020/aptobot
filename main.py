@@ -213,7 +213,13 @@ def query_text(query):
                     WHERE (t.city = %s or %s='') LIMIT 5 OFFSET %s
                     """
             SQL2 = """\
-                                SELECT p1.nommodif, p1.name, p1.producer, p1.photo, p3.city, max(p2.price) price FROM product p1
+                                SELECT p1.nommodif, p1.name, p1.producer, p1.photo, p3.city, ,
+                                case when min(p2.price) <> max(p2.price) then
+                                CONCAT(min(p2.price),' - ',max(p2.price))
+                                else
+                                CONCAT(min(p2.price))
+                                end 
+                                price  FROM product p1
                                 inner join users u on u.chat_id = %s
                                 inner join stock p2 on p2.company = p1.company and p2.product_id = p1.nommodif
                                 inner join store p3 on p3.company = p2.company and p3.name = p2.store and p3.city = u.city
