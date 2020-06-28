@@ -455,9 +455,8 @@ def get_search_list(user_id):
 def search_list(user_id):
     #Назначим кнопки
     markup = types.InlineKeyboardMarkup()
-    markup.add(
-        types.InlineKeyboardButton(text=u'\U0001F30D Искать каждый товар отдельно', callback_data='locallist_one:'),
-    )
+    markup.add(types.InlineKeyboardButton(text=u'\U0001F30D Искать каждый товар отдельно', callback_data='locallist_one:'),)
+    markup.add(types.InlineKeyboardButton(text=u'\U0001F50D Продолжить поиск', switch_inline_query_current_chat=""), )
     #Проверим что в списке есть товары
     db_config = read_db_config()
     conn = MySQLConnection(**db_config)
