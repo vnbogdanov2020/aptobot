@@ -178,12 +178,10 @@ def sent_barcode(message):
                 for product in products:
 
                     markup = types.InlineKeyboardMarkup()
-                    markup.add(
-                        types.InlineKeyboardButton(text=u'\U0001F4CC В список',
-                                                   callback_data='prlist:' + str(product[0])),
-                        types.InlineKeyboardButton(text=u'\U0001F30D Аптеки', callback_data='locallist:'),
-                        types.InlineKeyboardButton(text=u'\U0001F50D Поиск', switch_inline_query_current_chat=""),
-                    )
+                    markup.add(types.InlineKeyboardButton(text=u'\U0001F4CC Добавить в мой список',callback_data='prlist:' + str(product[0])),)
+                    markup.add(types.InlineKeyboardButton(text=u'\U0001F30D Искать по списку в аптеках', callback_data='locallist:'),)
+                    markup.add(types.InlineKeyboardButton(text=u'\U0001F50D Продолжить поиск', switch_inline_query_current_chat=""),)
+
                     bot.send_message(message.chat.id,
                                      '*' + product[1] + '* [.](' + product[3] + ') \n' + product[2]+'\nЦена: '+str(product[4])+' тенге',
                                      parse_mode='markdown',
@@ -243,13 +241,12 @@ def query_text(query):
                     for product in products:
                         try:
                             markup = types.InlineKeyboardMarkup()
-                            markup.add(
-                                types.InlineKeyboardButton(text=u'\U0001F4CC В список', callback_data='prlist:' + str(product[0])),
-                                types.InlineKeyboardButton(text=u'\U0001F30D Аптеки', callback_data='locallist:'),
-                                #types.InlineKeyboardButton(text=u'\U0001F30D', callback_data='local:'+str(product[0])),
+                            markup.add(types.InlineKeyboardButton(text=u'\U0001F4CC Добавить в мой список', callback_data='prlist:' + str(product[0])),)
+                            markup.add(types.InlineKeyboardButton(text=u'\U0001F30D Искать по списку в аптеках', callback_data='locallist:'),)
+                                #types.InlineKeyboardButton(text=u'\U0001F30D Найти аптеку', callback_data='local:'+str(product[0])),
                                 #types.InlineKeyboardButton(text=u'\U0001F30D', callback_data='locallist:'),
-                                types.InlineKeyboardButton(text=u'\U0001F50D Поиск', switch_inline_query_current_chat=""),
-                            )
+                            markup.add(types.InlineKeyboardButton(text=u'\U0001F50D Продолжить поиск', switch_inline_query_current_chat=""),)
+
                             items = types.InlineQueryResultArticle(
                                 id=product[0], title=product[1],
                                 description="Производитель: "+product[2]+"\nЦена: "+str(product[5])+" тенге",
@@ -358,10 +355,9 @@ def callback_inline(call):
 
 def products(user_id):
     markup = types.InlineKeyboardMarkup()
-    markup.add(
-        types.InlineKeyboardButton(text=u'\U0001F4CC' + ' Мой список', callback_data='mylist:'),
-        types.InlineKeyboardButton(text=u'\U0001F50D' + ' Поиск', switch_inline_query_current_chat="")
-    )
+    markup.add(types.InlineKeyboardButton(text=u'\U0001F4CC' + 'Мой список', callback_data='mylist:'),)
+    markup.add(types.InlineKeyboardButton(text=u'\U0001F50D' + 'Поиск товаров', switch_inline_query_current_chat=""),)
+
     # Сервисная комманда
     if user_id == chat_id_service:
         markup.add(
@@ -369,7 +365,7 @@ def products(user_id):
     bot.send_message(user_id, "КАК ЭТО РАБОТАЕТ:\n\n"
                                       "1. В пункте [Локация] выберите город и обновите координаты (если Вы еще этого не сделали)\n\n"
                                       "2. Нажмите [\U0001F50DПоиск], наберите боту часть наименования, например '@goAptoBot анальгин' или просто отправьте боту \U0001F4CE ФОТО ШТРИХ-КОДА с упаковки товара\n\n"
-                                      "3. Найдите один или несколько товаров и добавьте их в список\n\n"
+                                      "3. Найдите один или несколько товаров и добавьте их в список u'\U0001F4CC \n\n"
                                       "4. Бот сообщит о цене и найдет ближайшие к вам аптеки, в которых есть товар из списка",
                      parse_mode='HTML', reply_markup=markup)
 
@@ -431,11 +427,10 @@ def get_search_list(user_id):
             product_list = product_list + '*' + product[0] + '*' + '\n' + product[1] + '\n' + '\n'
 
         markup = types.InlineKeyboardMarkup()
-        markup.add(
-            types.InlineKeyboardButton(text=u'\U0001F5D1 Очистить', callback_data='clearlist:'),
-            types.InlineKeyboardButton(text=u'\U0001F30D Аптеки', callback_data='locallist:'),
-            types.InlineKeyboardButton(text=u'\U0001F50D Поиск', switch_inline_query_current_chat=""),
-        )
+        markup.add(types.InlineKeyboardButton(text=u'\U0001F5D1 Очистить список', callback_data='clearlist:'),)
+        markup.add(types.InlineKeyboardButton(text=u'\U0001F30D Искать по списку в аптеках', callback_data='locallist:'),)
+        markup.add(types.InlineKeyboardButton(text=u'\U0001F50D Продолжить поиск', switch_inline_query_current_chat=""),)
+
         bot.send_message(user_id,
                          product_list,
                          parse_mode='markdown',
