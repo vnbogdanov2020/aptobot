@@ -81,7 +81,7 @@ def add_user(message):
 #Обработка сообщений
 @bot.message_handler(content_types=['text'])
 def send_text(message):
-    if message.text.lower() == 'товары':
+    if message.text.lower() == 'поиск':
         products(message.chat.id)
     elif message.text.lower() == 'локация':
         city = get_user_city(message.chat.id)
