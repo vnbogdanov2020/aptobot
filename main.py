@@ -178,7 +178,8 @@ def sent_barcode(message):
                 for product in products:
 
                     markup = types.InlineKeyboardMarkup()
-                    markup.add(types.InlineKeyboardButton(text=u'\U0001F4CC Добавить в мой список',callback_data='prlist:' + str(product[0])),)
+                    markup.add(types.InlineKeyboardButton(text=u'\U0001F4CC Добавить в мой список',callback_data='prlist:' + str(product[0])),
+                               types.InlineKeyboardButton(text='Мой список', callback_data='mylist:'),)
                     markup.add(types.InlineKeyboardButton(text=u'\U0001F30D Искать по списку в аптеках', callback_data='locallist:'),)
                     markup.add(types.InlineKeyboardButton(text=u'\U0001F50D Продолжить поиск', switch_inline_query_current_chat=""),)
 
@@ -241,7 +242,8 @@ def query_text(query):
                     for product in products:
                         try:
                             markup = types.InlineKeyboardMarkup()
-                            markup.add(types.InlineKeyboardButton(text=u'\U0001F4CC Добавить в мой список', callback_data='prlist:' + str(product[0])),)
+                            markup.add(types.InlineKeyboardButton(text=u'\U0001F4CC Добавить в список', callback_data='prlist:' + str(product[0])),
+                                       types.InlineKeyboardButton(text='Мой список', callback_data='mylist:'),)
                             markup.add(types.InlineKeyboardButton(text=u'\U0001F30D Искать по списку в аптеках', callback_data='locallist:'),)
                                 #types.InlineKeyboardButton(text=u'\U0001F30D Найти аптеку', callback_data='local:'+str(product[0])),
                                 #types.InlineKeyboardButton(text=u'\U0001F30D', callback_data='locallist:'),
@@ -331,8 +333,12 @@ def callback_inline(call):
             conn.commit()
             cursor.close()
             conn.close()
+            markup = types.InlineKeyboardMarkup()
+            markup.add(
+                types.InlineKeyboardButton(text=u'\U0001F50D Продолжить поиск', switch_inline_query_current_chat=""), )
             bot.send_message(call.from_user.id,
-                             'Ваш список товаров удален.')
+                             'Ваш список товаров удален.', reply_markup=markup)
+
         if call.data.find('refresh:') == 0:
             #Импорт данных из аптек
             import_product()
@@ -352,11 +358,13 @@ def callback_inline(call):
         elif call.data.find('locallist:') == 0:
             get_search_list(call.from_user.id)
             search_list(call.from_user.id)
+        elif call.data.find('mylist:') == 0:
+            get_search_list(call.from_user.id)
 
 def products(user_id):
     markup = types.InlineKeyboardMarkup()
-    markup.add(types.InlineKeyboardButton(text=u'\U0001F4CC' + 'Мой список', callback_data='mylist:'),)
-    markup.add(types.InlineKeyboardButton(text=u'\U0001F50D' + 'Поиск товаров', switch_inline_query_current_chat=""),)
+    markup.add(types.InlineKeyboardButton(text=u'\U0001F4CC' + ' Мой список', callback_data='mylist:'),)
+    markup.add(types.InlineKeyboardButton(text=u'\U0001F50D' + ' Поиск товаров', switch_inline_query_current_chat=""),)
 
     # Сервисная комманда
     if user_id == chat_id_service:
@@ -365,8 +373,8 @@ def products(user_id):
     bot.send_message(user_id, "КАК ЭТО РАБОТАЕТ:\n\n"
                                       "1. В пункте [Локация] выберите город и обновите координаты (если Вы еще этого не сделали)\n\n"
                                       "2. Нажмите [\U0001F50DПоиск], наберите боту часть наименования, например '@goAptoBot анальгин' или просто отправьте боту \U0001F4CE ФОТО ШТРИХ-КОДА с упаковки товара\n\n"
-                                      "3. Найдите один или несколько товаров и добавьте их в список u'\U0001F4CC \n\n"
-                                      "4. Бот сообщит о цене и найдет ближайшие к вам аптеки, в которых есть товар из списка",
+                                      "3. Найдите один или несколько товаров и добавьте их в список \U0001F4CC \n\n"
+                                      "4. Нажмите [\U0001F30D Искать по списку в аптеках] - бот сообщит о цене и найдет ближайшие к вам аптеки, в которых есть товар из списка",
                      parse_mode='HTML', reply_markup=markup)
 
 def add_logs(user_id, metod, value):
